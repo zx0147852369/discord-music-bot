@@ -8,6 +8,7 @@ const { DisTube, isVoiceChannelEmpty } = require('distube');
 const { YtDlpPlugin, resolveSong } = require('./lib/ytDlpPlugin');
 const { getGuildSettings, logEvent, recordSongPlay } = require('./db');
 const { pickNextSong } = require('./lib/autoplay');
+const { profileChain } = require('./lib/audioProfiles');
 const { DJ_ONLY_COMMANDS, canUseDjCommand, isCommandDisabled } = require('./lib/permissions');
 const startDashboard = require('./web/server');
 
@@ -54,6 +55,10 @@ client.distube
   .on('initQueue', async (queue) => {
     const settings = getGuildSettings(queue.id);
     queue.setVolume(settings.default_volume);
+    // Apply the server's sound preset from the very first frame. Setting the ffmpeg arg here
+    // (rather than queue.filters) means no mid-song restart, and it carries to every song.
+    const af = profileChain(settings.audio_profile);
+    if (af) queue.ffmpegArgs.output.af = af;
     if (settings.announce_channel_id) {
       try {
         const channel = await queue.textChannel?.guild.channels.fetch(settings.announce_channel_id);

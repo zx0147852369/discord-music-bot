@@ -1013,7 +1013,15 @@ function guildSettingsPage({
   bot,
   recentHistory = [],
   loopSongs = [],
+  audioProfiles = {},
 }) {
+  const audioOptions = Object.entries(audioProfiles)
+    .map(
+      ([key, p]) =>
+        `<option value="${escapeHtml(key)}" data-desc="${escapeHtml(p.desc || '')}" ${settings.audio_profile === key ? 'selected' : ''}>${escapeHtml(p.label)}</option>`,
+    )
+    .join('');
+  const currentAudio = audioProfiles[settings.audio_profile] || {};
   const channelOptions = [`<option value="">(ห้องที่พิมพ์คำสั่ง /play)</option>`]
     .concat(
       textChannels.map(
@@ -1143,6 +1151,18 @@ function guildSettingsPage({
 
     <div class="card">
       <div class="section-head">
+        <div class="section-icon">${ICONS.volume}</div>
+        <h2 class="section-title">เอฟเฟกต์เสียง (คุณภาพเสียง)</h2>
+      </div>
+      <p class="section-desc">ปรับแต่งเสียงก่อนส่งเข้า Discord ให้ชัดขึ้น มีมิติ และเบสแน่นขึ้น — มีผลกับทุกเพลง</p>
+      <div class="field">
+        <select id="audio_profile" name="audio_profile">${audioOptions}</select>
+        <p class="section-desc" id="audio-desc" style="margin-top:10px; margin-left:0;">${escapeHtml(currentAudio.desc || '')}</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-head">
         <div class="section-icon">${ICONS.toggle}</div>
         <h2 class="section-title">เปิด/ปิดคำสั่ง</h2>
       </div>
@@ -1260,6 +1280,15 @@ $('btn-playpause').addEventListener('click', () => {
 });
 $('btn-skip').addEventListener('click', () => control('skip'));
 $('btn-stop').addEventListener('click', () => control('stop'));
+
+const audioSel = $('audio_profile');
+if (audioSel) {
+  audioSel.addEventListener('change', () => {
+    const opt = audioSel.options[audioSel.selectedIndex];
+    const desc = $('audio-desc');
+    if (desc) desc.textContent = opt ? opt.getAttribute('data-desc') || '' : '';
+  });
+}
 
 const loopBtn = $('btn-loop-play');
 if (loopBtn) {

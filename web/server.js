@@ -17,6 +17,7 @@ const {
 } = require('../db');
 const { resolveSong } = require('../lib/ytDlpPlugin');
 const { getConsoleLogs } = require('../lib/consoleCapture');
+const { PROFILES: AUDIO_PROFILES, isValidProfile, profileChain } = require('../lib/audioProfiles');
 const {
   loginPage,
   guildListPage,
@@ -175,6 +176,7 @@ function startDashboard(client) {
         bot: botInfo(),
         recentHistory: getSongHistory(guild.id, 12),
         loopSongs: getLoopSongs(guild.id),
+        audioProfiles: AUDIO_PROFILES,
       }),
     );
   });
@@ -191,6 +193,8 @@ function startDashboard(client) {
 
     const stay24_7 = req.body.stay_24_7 === 'on';
     const autoplay = req.body.autoplay === 'on';
+    const prevProfile = getGuildSettings(guild.id).audio_profile;
+    const audio_profile = isValidProfile(req.body.audio_profile) ? req.body.audio_profile : prevProfile;
     saveGuildSettings(guild.id, {
       default_volume: volume,
       announce_channel_id: req.body.announce_channel_id || null,
@@ -198,11 +202,20 @@ function startDashboard(client) {
       disabled_commands,
       stay_24_7: stay24_7,
       autoplay,
+      audio_profile,
     });
     // Without this the new volume would only take effect the next time the bot joins a
     // voice channel, which makes the slider look broken while music is playing.
     const queue = client.distube.getQueue(guild.id);
     if (queue) queue.setVolume(volume);
+    // Apply a changed sound preset to what's playing right now. Re-rendering the stream
+    // (seek to the current position) is what makes ffmpeg pick up the new filter chain.
+    if (queue && audio_profile !== prevProfile) {
+      const af = profileChain(audio_profile);
+      if (af) queue.ffmpegArgs.output.af = af;
+      else delete queue.ffmpegArgs.output.af;
+      queue.seek(queue.currentTime).catch(() => {}); // harmless if it can't re-seek
+    }
 
     logEvent({
       guildId: guild.id,
@@ -210,7 +223,7 @@ function startDashboard(client) {
       actor: req.ip,
       detail:
         `เสียง ${volume}%${queue ? ' (ปรับให้เพลงที่เล่นอยู่ด้วย)' : ''} · อยู่ในห้อง 24/7: ${stay24_7 ? 'เปิด' : 'ปิด'}` +
-        ` · เล่นต่อเนื่อง: ${autoplay ? 'เปิด' : 'ปิด'}` +
+        ` · เล่นต่อเนื่อง: ${autoplay ? 'เปิด' : 'ปิด'} · เสียง: ${audio_profile}` +
         (disabled_commands.length ? ` · ปิดคำสั่ง: ${disabled_commands.join(', ')}` : ''),
     });
 

@@ -40,6 +40,11 @@ if (!settingsColumns.includes('stay_24_7')) {
 if (!settingsColumns.includes('autoplay')) {
   db.exec('ALTER TABLE guild_settings ADD COLUMN autoplay INTEGER NOT NULL DEFAULT 1');
 }
+// Sound preset. Defaults to 'enhance' (see lib/audioProfiles.js) so playback is clearer and
+// bassier out of the box; existing rows pick it up via the column default.
+if (!settingsColumns.includes('audio_profile')) {
+  db.exec("ALTER TABLE guild_settings ADD COLUMN audio_profile TEXT NOT NULL DEFAULT 'enhance'");
+}
 
 // Every song the bot has played, per server. Doubles as the source for "keep the music
 // going" — when a queue runs dry the bot picks the next track from what this server likes.
@@ -260,19 +265,21 @@ const DEFAULTS = {
   disabled_commands: [],
   stay_24_7: true,
   autoplay: true,
+  audio_profile: 'enhance',
 };
 
 const selectStmt = db.prepare('SELECT * FROM guild_settings WHERE guild_id = ?');
 const upsertStmt = db.prepare(`
-  INSERT INTO guild_settings (guild_id, default_volume, announce_channel_id, dj_role_id, disabled_commands, stay_24_7, autoplay)
-  VALUES (@guild_id, @default_volume, @announce_channel_id, @dj_role_id, @disabled_commands, @stay_24_7, @autoplay)
+  INSERT INTO guild_settings (guild_id, default_volume, announce_channel_id, dj_role_id, disabled_commands, stay_24_7, autoplay, audio_profile)
+  VALUES (@guild_id, @default_volume, @announce_channel_id, @dj_role_id, @disabled_commands, @stay_24_7, @autoplay, @audio_profile)
   ON CONFLICT(guild_id) DO UPDATE SET
     default_volume = excluded.default_volume,
     announce_channel_id = excluded.announce_channel_id,
     dj_role_id = excluded.dj_role_id,
     disabled_commands = excluded.disabled_commands,
     stay_24_7 = excluded.stay_24_7,
-    autoplay = excluded.autoplay
+    autoplay = excluded.autoplay,
+    audio_profile = excluded.audio_profile
 `);
 
 function getGuildSettings(guildId) {
@@ -297,6 +304,7 @@ function saveGuildSettings(guildId, settings) {
     disabled_commands: JSON.stringify(merged.disabled_commands || []),
     stay_24_7: merged.stay_24_7 ? 1 : 0,
     autoplay: merged.autoplay ? 1 : 0,
+    audio_profile: merged.audio_profile || 'enhance',
   });
   return getGuildSettings(guildId);
 }
