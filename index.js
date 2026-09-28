@@ -8,7 +8,7 @@ const { getGuildSettings } = require('./db');
 const { DJ_ONLY_COMMANDS, canUseDjCommand, isCommandDisabled } = require('./lib/permissions');
 const startDashboard = require('./web/server');
 
-process.env.FFMPEG_PATH = process.env.FFMPEG_PATH || require('ffmpeg-static');
+const ffmpegPath = process.env.FFMPEG_PATH || require('ffmpeg-static');
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
@@ -27,6 +27,7 @@ client.distube = new DisTube(client, {
   emitAddListWhenCreatingQueue: false,
   savePreviousSongs: true,
   plugins: [new YouTubePlugin()],
+  ffmpeg: { path: ffmpegPath },
 });
 
 client.distube
