@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const { isURL } = require('distube');
 const { resolveSong, youtubeTitle } = require('../lib/ytDlpPlugin');
 
@@ -37,6 +37,19 @@ module.exports = {
       return interaction.reply({ content: 'คุณต้องเข้าห้องเสียง (voice channel) ก่อนใช้คำสั่งนี้', ephemeral: true });
     }
 
+    // Checked before searching so a permission problem is reported instantly rather than
+    // after a few seconds of lookup.
+    const permissions = voiceChannel.permissionsFor(interaction.guild.members.me);
+    const missing = ['Connect', 'Speak'].filter((p) => !permissions?.has(PermissionsBitField.Flags[p]));
+    if (missing.length) {
+      return interaction.reply({
+        content:
+          `บอทไม่มีสิทธิ์ **${missing.join(' และ ')}** ในห้องเสียง **${voiceChannel.name}**\n` +
+          'วิธีแก้: คลิกขวาที่ห้องเสียงนั้น → Edit Channel → Permissions → เพิ่ม role ของบอทแล้วเปิดสิทธิ์ Connect กับ Speak',
+        ephemeral: true,
+      });
+    }
+
     await interaction.deferReply();
     const query = interaction.options.getString('query', true);
     const resolveOptions = { member: interaction.member };
@@ -69,6 +82,12 @@ module.exports = {
       await interaction.editReply(`กำลังเพิ่มเข้าคิว: **${song.name}**`);
     } catch (err) {
       console.error(err);
+      // Permissions can still change between the check above and actually joining.
+      if (err.errorCode === 'VOICE_MISSING_PERMS') {
+        return interaction.editReply(
+          `บอทเข้าห้องเสียง **${voiceChannel.name}** ไม่ได้ — ตรวจสิทธิ์ Connect และ Speak ของ role บอทในห้องนั้น`,
+        );
+      }
       await interaction.editReply('เล่นเพลงไม่สำเร็จ ลองค้นด้วยชื่อเพลงแทนการใช้ลิงก์ดูครับ');
     }
   },
