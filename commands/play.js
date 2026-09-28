@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { isURL } = require('distube');
-const ytsr = require('@distube/ytsr');
+const { searchOne, youtubeTitle } = require('../lib/ytDlpPlugin');
 
 // A URL like ...&list=RDxxxx&start_radio=1 points at YouTube's auto-generated "Radio" mix,
 // which has no fixed end — yt-dlp will hang trying to resolve it as a playlist. Strip the
@@ -15,12 +15,25 @@ function stripRadioMix(urlString) {
   return url.toString();
 }
 
+function isYouTubeUrl(urlString) {
+  try {
+    const { hostname } = new URL(urlString);
+    return /(^|\.)(youtube\.com|youtu\.be)$/.test(hostname);
+  } catch {
+    return false;
+  }
+}
+
+// YouTube refuses most requests from datacenter IPs, so searches go to SoundCloud unless a
+// proxy is configured to give the bot a clean egress IP.
+const searchSource = process.env.YTDLP_PROXY ? 'youtube' : 'soundcloud';
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('play')
-    .setDescription('เล่นเพลงจาก YouTube (ลิงก์ หรือ ชื่อเพลง)')
+    .setDescription('เล่นเพลง (ชื่อเพลง หรือ ลิงก์ YouTube/SoundCloud)')
     .addStringOption((opt) =>
-      opt.setName('query').setDescription('ลิงก์ YouTube หรือชื่อเพลงที่ต้องการค้นหา').setRequired(true),
+      opt.setName('query').setDescription('ชื่อเพลงที่ต้องการค้นหา หรือลิงก์เพลง').setRequired(true),
     ),
   async execute(interaction, distube) {
     const voiceChannel = interaction.member?.voice?.channel;
@@ -30,31 +43,43 @@ module.exports = {
 
     await interaction.deferReply();
     const query = interaction.options.getString('query', true);
+    const playOptions = { member: interaction.member, textChannel: interaction.channel };
 
     try {
-      let target = query;
-      let label = query;
+      let target;
+      let label;
 
       if (isURL(query)) {
         target = stripRadioMix(query);
+        label = query;
       } else {
-        const result = await ytsr(query, { limit: 1, type: 'video' });
-        const video = result.items[0];
-        if (!video) {
-          return interaction.editReply(`ไม่พบเพลงที่ค้นหา: **${query}**`);
-        }
-        target = video.url;
-        label = video.name;
+        const found = await searchOne(query, { source: searchSource });
+        if (!found) return interaction.editReply(`ไม่พบเพลงที่ค้นหา: **${query}**`);
+        target = found.url;
+        label = found.title;
       }
 
-      await distube.play(voiceChannel, target, {
-        member: interaction.member,
-        textChannel: interaction.channel,
-      });
+      try {
+        await distube.play(voiceChannel, target, playOptions);
+      } catch (err) {
+        // A YouTube link the bot cannot extract is still identifiable: look the title up and
+        // play the same song from SoundCloud instead.
+        if (!isYouTubeUrl(target)) throw err;
+        console.error('YouTube playback failed, falling back to SoundCloud:', err.message);
+
+        const title = await youtubeTitle(target);
+        const found = await searchOne(title, { source: 'soundcloud' });
+        if (!found) {
+          return interaction.editReply(`เล่นจาก YouTube ไม่ได้ และหาเพลง **${title}** ใน SoundCloud ไม่เจอ`);
+        }
+        await distube.play(voiceChannel, found.url, playOptions);
+        return interaction.editReply(`YouTube เล่นไม่ได้ เลยเปิดจาก SoundCloud แทน: **${found.title}**`);
+      }
+
       await interaction.editReply(`กำลังเพิ่มเข้าคิว: **${label}**`);
     } catch (err) {
       console.error(err);
-      await interaction.editReply('เล่นเพลงไม่สำเร็จ ลองใหม่อีกครั้ง หรือใช้ลิงก์ YouTube โดยตรง');
+      await interaction.editReply('เล่นเพลงไม่สำเร็จ ลองค้นด้วยชื่อเพลงแทนการใช้ลิงก์ดูครับ');
     }
   },
 };
