@@ -3,12 +3,13 @@ require('dotenv').config();
 require('./lib/consoleCapture').installConsoleCapture();
 const fs = require('fs');
 const path = require('path');
-const { Client, GatewayIntentBits, Collection, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { DisTube, isVoiceChannelEmpty } = require('distube');
 const { YtDlpPlugin, resolveSong } = require('./lib/ytDlpPlugin');
 const { getGuildSettings, logEvent, recordSongPlay } = require('./db');
 const { pickNextSong } = require('./lib/autoplay');
 const { profileChain } = require('./lib/audioProfiles');
+const { nowPlayingEmbed, queuedEmbed } = require('./lib/embeds');
 const { DJ_ONLY_COMMANDS, canUseDjCommand, isCommandDisabled } = require('./lib/permissions');
 const startDashboard = require('./web/server');
 
@@ -87,14 +88,12 @@ client.distube
     });
     queue.textChannel?.send({
       embeds: [
-        new EmbedBuilder()
-          .setColor(auto ? 0x23a55a : 0x5865f2)
-          .setTitle(auto ? 'เล่นต่อเนื่องอัตโนมัติ' : 'กำลังเล่นเพลง')
-          .setDescription(`[${song.name}](${song.url})`)
-          .addFields(
-            { name: 'ความยาว', value: song.formattedDuration, inline: true },
-            { name: 'ขอโดย', value: auto ? 'ระบบเล่นต่อเนื่อง' : `${song.user}`, inline: true },
-          ),
+        nowPlayingEmbed({
+          song,
+          auto,
+          voiceChannelName: queue.voice.channel?.name || null,
+          bot: client.user ? { username: client.user.username, avatarURL: client.user.displayAvatarURL() } : null,
+        }),
       ],
     });
   })
@@ -108,7 +107,7 @@ client.distube
     // Bulk adds (e.g. loading a whole loop playlist from the dashboard) are flagged silent so
     // the channel isn't flooded with one "added to queue" line per track.
     if (!song.metadata?.silent) {
-      queue.textChannel?.send(`เพิ่มเข้าคิวแล้ว: **${song.name}** (${song.formattedDuration})`);
+      queue.textChannel?.send({ embeds: [queuedEmbed({ song })] });
     }
   })
   .on('finish', (queue) => {
