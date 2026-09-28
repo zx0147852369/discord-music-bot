@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { Client, GatewayIntentBits, Collection, EmbedBuilder } = require('discord.js');
 const { DisTube, isVoiceChannelEmpty } = require('distube');
-const { YouTubePlugin } = require('@distube/youtube');
+const { YtDlpPlugin } = require('./lib/ytDlpPlugin');
 const { getGuildSettings } = require('./db');
 const { DJ_ONLY_COMMANDS, canUseDjCommand, isCommandDisabled } = require('./lib/permissions');
 const startDashboard = require('./web/server');
@@ -26,7 +26,7 @@ client.distube = new DisTube(client, {
   emitAddSongWhenCreatingQueue: false,
   emitAddListWhenCreatingQueue: false,
   savePreviousSongs: true,
-  plugins: [new YouTubePlugin()],
+  plugins: [new YtDlpPlugin()],
   ffmpeg: { path: ffmpegPath },
 });
 

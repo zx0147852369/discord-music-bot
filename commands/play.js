@@ -1,4 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { isURL } = require('distube');
+const ytsr = require('@distube/ytsr');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -17,11 +19,24 @@ module.exports = {
     const query = interaction.options.getString('query', true);
 
     try {
-      await distube.play(voiceChannel, query, {
+      let target = query;
+      let label = query;
+
+      if (!isURL(query)) {
+        const result = await ytsr(query, { limit: 1, type: 'video' });
+        const video = result.items[0];
+        if (!video) {
+          return interaction.editReply(`ไม่พบเพลงที่ค้นหา: **${query}**`);
+        }
+        target = video.url;
+        label = video.name;
+      }
+
+      await distube.play(voiceChannel, target, {
         member: interaction.member,
         textChannel: interaction.channel,
       });
-      await interaction.editReply(`กำลังค้นหา: **${query}**`);
+      await interaction.editReply(`กำลังเพิ่มเข้าคิว: **${label}**`);
     } catch (err) {
       console.error(err);
       await interaction.editReply('เล่นเพลงไม่สำเร็จ ลองใหม่อีกครั้ง หรือใช้ลิงก์ YouTube โดยตรง');
