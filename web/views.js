@@ -365,6 +365,35 @@ ${fontsAndReset()}
   }
   .saved-toast::before { content: "✓"; }
 
+  /* Grouped settings: a compact, organised list of rows instead of one big card per option. */
+  .settings-list { display: flex; flex-direction: column; margin-top: 10px; }
+  .srow { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 17px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  .srow:first-child { border-top: none; padding-top: 4px; }
+  .srow-label { min-width: 0; flex: 1 1 260px; }
+  .srow-title { display: flex; align-items: center; gap: 10px; font-size: 14.5px; font-weight: 700; color: var(--text); }
+  .srow-title .ic { width: 30px; height: 30px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex-shrink: 0; }
+  .srow-title .ic svg { width: 16px; height: 16px; }
+  .srow-desc { font-size: 12.5px; color: var(--text-faint); margin: 6px 0 0 40px; line-height: 1.55; }
+  .srow-control { flex-shrink: 0; display: flex; align-items: center; gap: 12px; }
+  .srow-control select { width: auto; min-width: 240px; max-width: 320px; }
+  .srow-control--wide { flex: 1 1 240px; min-width: 220px; }
+  .srow.stack { flex-direction: column; align-items: stretch; }
+  .srow.stack .srow-label { flex: 0 0 auto; } /* don't let the label grow tall in column mode */
+  .srow.stack .srow-control { width: 100%; margin-top: 14px; }
+  .srow.stack .command-grid { margin-top: 0; width: 100%; }
+  @media (max-width: 560px) {
+    .srow { gap: 12px; }
+    .srow-desc { margin-left: 40px; }
+    .srow-control, .srow-control select { width: 100%; min-width: 0; max-width: none; }
+    .srow-control select { flex: 1; }
+  }
+
+  .save-bar {
+    display: flex; align-items: center; gap: 4px; margin-top: 22px; padding: 14px 16px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow);
+  }
+  .save-bar button.primary { margin-top: 0; }
+
   .guild-list { display: grid; gap: 10px; margin-top: 4px; }
   .guild-row {
     display: flex; align-items: center; gap: 14px;
@@ -1129,92 +1158,90 @@ function guildSettingsPage({
     <div class="card">
       <div class="section-head">
         <div class="section-icon">${ICONS.volume}</div>
-        <h2 class="section-title">ระดับเสียงเริ่มต้น</h2>
+        <h2 class="section-title">การเล่นเพลง</h2>
       </div>
-      <p class="section-desc">ใช้ตอนบอทเข้าห้องเสียงครั้งใหม่ — ถ้ามีเพลงเล่นอยู่ กดบันทึกแล้วจะปรับให้ทันที</p>
-      <div class="field">
-        <div class="volume-row">
-          <input type="range" id="default_volume" name="default_volume" min="0" max="100" value="${settings.default_volume}"
-            oninput="document.getElementById('vol-val').textContent = this.value + '%'">
-          <span class="volume-value" id="vol-val">${settings.default_volume}%</span>
-        </div>
-      </div>
-    </div>
+      <p class="section-desc">ตั้งค่าเสียงและพฤติกรรมการเล่นของบอทในเซิร์ฟเวอร์นี้</p>
+      <div class="settings-list">
 
-    <div class="card">
-      <div class="section-head">
-        <div class="section-icon">${ICONS.channel}</div>
-        <h2 class="section-title">ห้องแจ้งเพลง</h2>
-      </div>
-      <p class="section-desc">ห้องข้อความที่บอทจะโพสต์ว่ากำลังเล่นอะไร</p>
-      <div class="field">
-        <select id="announce_channel_id" name="announce_channel_id">${channelOptions}</select>
+        <div class="srow">
+          <div class="srow-label">
+            <div class="srow-title"><span class="ic">${ICONS.volume}</span>ระดับเสียงเริ่มต้น</div>
+            <div class="srow-desc">ใช้ตอนบอทเข้าห้องเสียงครั้งใหม่ — ถ้ามีเพลงเล่นอยู่ กดบันทึกแล้วปรับให้ทันที</div>
+          </div>
+          <div class="srow-control srow-control--wide">
+            <input type="range" id="default_volume" name="default_volume" min="0" max="100" value="${settings.default_volume}"
+              oninput="document.getElementById('vol-val').textContent = this.value + '%'">
+            <span class="volume-value" id="vol-val">${settings.default_volume}%</span>
+          </div>
+        </div>
+
+        <div class="srow">
+          <div class="srow-label">
+            <div class="srow-title"><span class="ic">${ICONS.channel}</span>ห้องแจ้งเพลง</div>
+            <div class="srow-desc">ห้องข้อความที่บอทจะโพสต์ว่ากำลังเล่นอะไร</div>
+          </div>
+          <div class="srow-control"><select id="announce_channel_id" name="announce_channel_id">${channelOptions}</select></div>
+        </div>
+
+        <div class="srow">
+          <div class="srow-label">
+            <div class="srow-title"><span class="ic">${ICONS.volume}</span>เอฟเฟกต์เสียง</div>
+            <div class="srow-desc">ปรับเสียงก่อนส่งเข้า Discord ให้ชัด มีมิติ เบสแน่น — <span id="audio-desc">${escapeHtml(currentAudio.desc || '')}</span></div>
+          </div>
+          <div class="srow-control"><select id="audio_profile" name="audio_profile">${audioOptions}</select></div>
+        </div>
+
+        <div class="srow">
+          <div class="srow-label">
+            <div class="srow-title"><span class="ic">${ICONS.channel}</span>อยู่ในห้องเสียงตลอด (24/7)</div>
+            <div class="srow-desc">เล่นจบคิวหรือไม่มีคนแล้ว บอทยังอยู่ในห้องเดิม สั่งเพลงต่อได้ทันที (ใช้ /leave ถ้าต้องการให้ออก)</div>
+          </div>
+          <div class="srow-control">
+            <label class="switch"><input type="checkbox" name="stay_24_7" ${settings.stay_24_7 ? 'checked' : ''}><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
+        <div class="srow">
+          <div class="srow-label">
+            <div class="srow-title"><span class="ic">${ICONS.note}</span>เล่นต่อเนื่องอัตโนมัติ</div>
+            <div class="srow-desc">เล่นครบคิวแล้วหาเพลงแนวเดียวกันมาเล่นต่อ — หรือถ้าตั้ง “เพลย์ลิสต์วนซ้ำ” ด้านล่างจะวนเฉพาะเพลงพวกนั้น</div>
+          </div>
+          <div class="srow-control">
+            <label class="switch"><input type="checkbox" name="autoplay" ${settings.autoplay ? 'checked' : ''}><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
       </div>
     </div>
 
     <div class="card">
       <div class="section-head">
         <div class="section-icon">${ICONS.shield}</div>
-        <h2 class="section-title">จำกัดสิทธิ์คำสั่งควบคุมเพลง</h2>
+        <h2 class="section-title">สิทธิ์และคำสั่ง</h2>
       </div>
-      <p class="section-desc">ใช้กับ /skip /stop /pause /resume /volume /loop /leave — แอดมินสั่งได้เสมอ</p>
-      <div class="field">
-        <select id="dj_role_id" name="dj_role_id">${roleOptions}</select>
+      <p class="section-desc">ควบคุมว่าใครสั่งบอทได้ และเปิด/ปิดคำสั่งแต่ละตัว</p>
+      <div class="settings-list">
+
+        <div class="srow">
+          <div class="srow-label">
+            <div class="srow-title"><span class="ic">${ICONS.shield}</span>จำกัดสิทธิ์คำสั่งควบคุมเพลง</div>
+            <div class="srow-desc">ใช้กับ /skip /stop /pause /resume /volume /loop /leave — แอดมินสั่งได้เสมอ</div>
+          </div>
+          <div class="srow-control"><select id="dj_role_id" name="dj_role_id">${roleOptions}</select></div>
+        </div>
+
+        <div class="srow stack">
+          <div class="srow-label">
+            <div class="srow-title"><span class="ic">${ICONS.toggle}</span>เปิด/ปิดคำสั่ง</div>
+            <div class="srow-desc">สลับปิดคำสั่งที่ไม่ต้องการให้ใช้ในเซิร์ฟเวอร์นี้</div>
+          </div>
+          <div class="srow-control"><div class="command-grid">${commandCheckboxes(allCommands, settings.disabled_commands)}</div></div>
+        </div>
+
       </div>
     </div>
 
-    <div class="card">
-      <div class="section-head">
-        <div class="section-icon">${ICONS.channel}</div>
-        <h2 class="section-title">อยู่ในห้องเสียงตลอด (24/7)</h2>
-      </div>
-      <p class="section-desc">เล่นเพลงจบคิวหรือไม่มีคนในห้องแล้ว บอทจะยังอยู่ในห้องเดิม สั่งเพลงต่อได้ทันที (ใช้ /leave ถ้าต้องการให้ออก)</p>
-      <label class="cmd-toggle" style="margin-top:14px; max-width:280px;">
-        <span class="cmd-name" style="font-family:inherit;">อยู่ในห้องตลอดเวลา</span>
-        <span class="switch">
-          <input type="checkbox" name="stay_24_7" ${settings.stay_24_7 ? 'checked' : ''}>
-          <span class="track"><span class="thumb"></span></span>
-        </span>
-      </label>
-    </div>
-
-    <div class="card">
-      <div class="section-head">
-        <div class="section-icon">${ICONS.note}</div>
-        <h2 class="section-title">เล่นเพลงต่อเนื่องอัตโนมัติ</h2>
-      </div>
-      <p class="section-desc">เมื่อเล่นครบคิว บอทจะหาเพลงแนวเดียวกับเพลงล่าสุดมาเล่นต่อเอง โดยดูจากประวัติของเซิร์ฟเวอร์นี้ — หรือถ้าตั้ง “เพลย์ลิสต์วนซ้ำ” ด้านล่างไว้ จะวนเฉพาะเพลงพวกนั้นแทน</p>
-      <label class="cmd-toggle" style="margin-top:14px; max-width:280px;">
-        <span class="cmd-name" style="font-family:inherit;">เล่นต่อเนื่องไม่มีสะดุด</span>
-        <span class="switch">
-          <input type="checkbox" name="autoplay" ${settings.autoplay ? 'checked' : ''}>
-          <span class="track"><span class="thumb"></span></span>
-        </span>
-      </label>
-    </div>
-
-    <div class="card">
-      <div class="section-head">
-        <div class="section-icon">${ICONS.volume}</div>
-        <h2 class="section-title">เอฟเฟกต์เสียง (คุณภาพเสียง)</h2>
-      </div>
-      <p class="section-desc">ปรับแต่งเสียงก่อนส่งเข้า Discord ให้ชัดขึ้น มีมิติ และเบสแน่นขึ้น — มีผลกับทุกเพลง</p>
-      <div class="field">
-        <select id="audio_profile" name="audio_profile">${audioOptions}</select>
-        <p class="section-desc" id="audio-desc" style="margin-top:10px; margin-left:0;">${escapeHtml(currentAudio.desc || '')}</p>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="section-head">
-        <div class="section-icon">${ICONS.toggle}</div>
-        <h2 class="section-title">เปิด/ปิดคำสั่ง</h2>
-      </div>
-      <p class="section-desc">สลับปิดคำสั่งที่ไม่ต้องการให้ใช้ในเซิร์ฟเวอร์นี้</p>
-      <div class="command-grid">${commandCheckboxes(allCommands, settings.disabled_commands)}</div>
-    </div>
-
-    <div style="display:flex; align-items:center;">
+    <div class="save-bar">
       <button type="submit" class="primary">บันทึกการตั้งค่า</button>
       ${saved ? '<span class="saved-toast">บันทึกแล้ว</span>' : ''}
     </div>
