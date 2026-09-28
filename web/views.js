@@ -96,9 +96,12 @@ function fontsAndReset() {
 <link rel="icon" href="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="24" fill="%235865F2"/><text x="50" y="66" font-size="52" text-anchor="middle" fill="white" font-family="sans-serif">♪</text></svg>')}">`;
 }
 
-function layout({ title, body, nav }) {
+function layout({ title, body, nav, toast }) {
   // The login screen is the only page without the app shell.
   const sidebarHtml = nav ? sidebar(nav) : '';
+  const toastAttrs = toast
+    ? ` data-toast="${escapeHtml(toast.msg)}" data-toast-type="${escapeHtml(toast.type || 'ok')}"`
+    : '';
   return `<!DOCTYPE html>
 <html lang="th">
 <head>
@@ -389,10 +392,12 @@ ${fontsAndReset()}
   }
 
   .save-bar {
-    display: flex; align-items: center; gap: 4px; margin-top: 22px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 14px; margin-top: 22px; padding: 14px 16px;
     background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow);
   }
-  .save-bar button.primary { margin-top: 0; }
+  .save-bar button.primary { margin-top: 0; flex-shrink: 0; }
+  .save-hint { font-size: 12.5px; color: var(--text-faint); }
+  @media (max-width: 560px) { .save-bar { flex-direction: column; align-items: stretch; } .save-hint { text-align: center; } }
 
   .guild-list { display: grid; gap: 10px; margin-top: 4px; }
   .guild-row {
@@ -678,15 +683,97 @@ ${fontsAndReset()}
     .nav-item span { display: none; }
     .nav-item { padding: 9px; }
   }
+
+  /* ============================================================================
+     UI/UX layer — motion, focus and feedback shared by every page.
+     Kept restrained on purpose: quick, subtle, and fully disabled for anyone who
+     prefers reduced motion. ============================================================================ */
+  html { scroll-behavior: smooth; }
+
+  /* Keyboard focus is always clearly visible; mouse clicks stay clean. */
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+  a:focus-visible, button:focus-visible, .nav-item:focus-visible, .guild-row:focus-visible, .loop-tile:focus-within { outline-offset: 3px; }
+
+  /* Content settles into place on load instead of snapping — small, capped stagger. */
+  @keyframes riseIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  main > *, .rail { animation: riseIn .42s cubic-bezier(.2,.7,.2,1) both; }
+  main > *:nth-child(1) { animation-delay: .02s; }
+  main > *:nth-child(2) { animation-delay: .06s; }
+  main > *:nth-child(3) { animation-delay: .10s; }
+  main > *:nth-child(4) { animation-delay: .14s; }
+  main > *:nth-child(n+5) { animation-delay: .18s; }
+  .rail { animation-delay: .12s; }
+
+  /* Interactive surfaces lift slightly on hover so the UI feels responsive. */
+  .guild-row, .loop-tile { transition: transform .16s ease, box-shadow .2s ease, border-color .16s ease, background .16s ease; }
+  .guild-row:hover { transform: translateY(-1px); box-shadow: 0 10px 24px -14px rgba(16,24,40,.3); }
+  .loop-tile:hover { transform: translateY(-1px); border-color: var(--border-strong); box-shadow: 0 8px 20px -12px rgba(16,24,40,.22); }
+  button.primary, .tbtn, .chip { transition: background .15s ease, border-color .15s ease, color .15s ease, transform .1s ease, box-shadow .2s ease; }
+  button.primary:hover { box-shadow: 0 10px 24px -10px rgba(51,82,204,.6); }
+
+  /* Global feedback toasts — slide in from the top-right, auto-dismiss. */
+  .toast-host { position: fixed; top: 18px; right: 18px; z-index: 200; display: flex; flex-direction: column; gap: 10px; pointer-events: none; max-width: calc(100vw - 32px); }
+  .app-toast {
+    pointer-events: auto; min-width: 210px; max-width: 340px;
+    background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 12px; padding: 12px 14px; font-size: 13.5px; font-weight: 600; color: var(--text);
+    box-shadow: 0 18px 44px -16px rgba(16,24,40,.34);
+    display: flex; align-items: center; gap: 11px;
+    animation: toastIn .34s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .app-toast.ok { border-left-color: var(--success); }
+  .app-toast.err { border-left-color: var(--danger); }
+  .app-toast.leaving { animation: toastOut .28s ease forwards; }
+  .app-toast .tico { width: 22px; height: 22px; flex-shrink: 0; display: grid; place-items: center; border-radius: 7px; font-size: 12px; font-weight: 800; }
+  .app-toast.ok .tico { background: var(--success-soft); color: var(--success); }
+  .app-toast.err .tico { background: var(--danger-soft); color: var(--danger); }
+  .app-toast.info .tico { background: var(--accent-soft); color: var(--accent); }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(26px) scale(.96); } to { opacity: 1; transform: none; } }
+  @keyframes toastOut { to { opacity: 0; transform: translateX(26px); } }
+
+  /* Loading skeleton shimmer. */
+  .skeleton { position: relative; overflow: hidden; background: var(--surface-2); border-radius: 12px; }
+  .skeleton::after { content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent); animation: shimmer 1.4s infinite; }
+  .np-skeleton { height: 132px; }
+  @keyframes shimmer { 100% { transform: translateX(100%); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+    .guild-row:hover, .loop-tile:hover { transform: none; }
+  }
 </style>
 </head>
-<body>
+<body${toastAttrs}>
 <div class="shell">
 ${sidebarHtml}
 <div class="content">
 ${body}
 </div>
 </div>
+<div class="toast-host" id="toast-host" aria-live="polite" aria-atomic="false"></div>
+<script>
+(function () {
+  var ICONS = { ok: '✓', err: '!', info: 'i' };
+  window.appToast = function (msg, type) {
+    var host = document.getElementById('toast-host');
+    if (!host || !msg) return;
+    type = type === 'ok' || type === 'err' ? type : 'info';
+    var t = document.createElement('div');
+    t.className = 'app-toast ' + type;
+    t.setAttribute('role', type === 'err' ? 'alert' : 'status');
+    var ic = document.createElement('span'); ic.className = 'tico'; ic.textContent = ICONS[type];
+    var sp = document.createElement('span'); sp.textContent = msg;
+    t.appendChild(ic); t.appendChild(sp); host.appendChild(t);
+    var life = setTimeout(dismiss, 3600);
+    function dismiss() { clearTimeout(life); t.classList.add('leaving'); setTimeout(function () { t.remove(); }, 300); }
+    t.addEventListener('click', dismiss);
+  };
+  var d = document.body && document.body.dataset;
+  if (d && d.toast) window.appToast(d.toast, d.toastType || 'ok');
+})();
+</script>
 </body>
 </html>`;
 }
@@ -1110,6 +1197,7 @@ function guildSettingsPage({
   return layout({
     title: `${guild.name} - ${bot?.name || 'Music Bot'}`,
     nav: { bot, active: 'settings', guild },
+    toast: saved ? { msg: 'บันทึกการตั้งค่าแล้ว', type: 'ok' } : null,
     body: `
 <div class="split">
 <main>
@@ -1126,7 +1214,7 @@ function guildSettingsPage({
       <div class="section-icon">${ICONS.note}</div>
       <h2 class="section-title">สถานะตอนนี้</h2>
     </div>
-    <div id="now-playing" style="margin-top:16px;"><div class="empty-state">กำลังโหลดสถานะ...</div></div>
+    <div id="now-playing" style="margin-top:16px;"><div class="skeleton np-skeleton"></div></div>
     <div class="transport">
       <button type="button" class="tbtn accent" id="btn-playpause" disabled>${ICONS.pause}<span id="playpause-label">หยุดชั่วคราว</span></button>
       <button type="button" class="tbtn" id="btn-skip" disabled>${ICONS.skip}ข้ามเพลง</button>
@@ -1151,7 +1239,6 @@ function guildSettingsPage({
       <input type="text" id="play-query" placeholder="เช่น bodyslam ความเชื่อ" autocomplete="off">
       <button type="button" class="primary" id="btn-play">เล่น</button>
     </div>
-    <div class="toast" id="play-toast"></div>
   </div>
 
   <form method="POST" action="/guild/${guild.id}">
@@ -1243,7 +1330,7 @@ function guildSettingsPage({
 
     <div class="save-bar">
       <button type="submit" class="primary">บันทึกการตั้งค่า</button>
-      ${saved ? '<span class="saved-toast">บันทึกแล้ว</span>' : ''}
+      <span class="save-hint">การตั้งค่ามีผลกับการเล่นครั้งถัดไป (หรือทันทีถ้ากำลังเล่นอยู่)</span>
     </div>
   </form>
 
@@ -1261,12 +1348,9 @@ function esc(s) {
   return d.innerHTML;
 }
 
+// Route the page's action feedback through the shared top-right toast system.
 function toast(msg, ok) {
-  const t = $('play-toast');
-  t.textContent = msg;
-  t.className = 'toast ' + (ok ? 'ok' : 'err');
-  clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => { t.className = 'toast'; }, 5000);
+  if (window.appToast) window.appToast(msg, ok ? 'ok' : 'err');
 }
 
 async function post(path, body) {
