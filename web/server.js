@@ -157,12 +157,17 @@ function startDashboard(client) {
       disabled_commands,
       stay_24_7: stay24_7,
     });
+    // Without this the new volume would only take effect the next time the bot joins a
+    // voice channel, which makes the slider look broken while music is playing.
+    const queue = client.distube.getQueue(guild.id);
+    if (queue) queue.setVolume(volume);
+
     logEvent({
       guildId: guild.id,
       type: 'settings_saved',
       actor: req.ip,
       detail:
-        `เสียง ${volume}% · อยู่ในห้อง 24/7: ${stay24_7 ? 'เปิด' : 'ปิด'}` +
+        `เสียง ${volume}%${queue ? ' (ปรับให้เพลงที่เล่นอยู่ด้วย)' : ''} · อยู่ในห้อง 24/7: ${stay24_7 ? 'เปิด' : 'ปิด'}` +
         (disabled_commands.length ? ` · ปิดคำสั่ง: ${disabled_commands.join(', ')}` : ''),
     });
 

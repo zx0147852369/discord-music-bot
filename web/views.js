@@ -212,14 +212,29 @@ ${fontsAndReset()}
   }
 
   .volume-row { display: flex; align-items: center; gap: 16px; }
+  /* The visible track stays slim, but the input itself is tall enough to grab: a 6px-high
+     input is nearly impossible to hit with a mouse. */
   input[type=range] {
     flex: 1;
     -webkit-appearance: none;
+    appearance: none;
+    height: 26px;
+    background: transparent;
+    outline: none;
+    cursor: pointer;
+    margin: 0;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
     height: 6px;
     border-radius: 999px;
     background: var(--surface-2);
-    outline: none;
   }
+  input[type=range]::-moz-range-track {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--surface-2);
+  }
+  input[type=range]:focus-visible::-webkit-slider-runnable-track { outline: 2px solid var(--accent); outline-offset: 3px; }
   input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none;
     width: 18px; height: 18px; border-radius: 50%;
@@ -227,6 +242,7 @@ ${fontsAndReset()}
     border: 3px solid #fff2;
     cursor: pointer;
     box-shadow: 0 2px 6px rgba(88,101,242,0.5);
+    margin-top: -6px; /* centre the thumb on the 6px track */
   }
   input[type=range]::-moz-range-thumb {
     width: 18px; height: 18px; border-radius: 50%;
@@ -715,7 +731,7 @@ ${headerNav(bot)}
         <div class="section-icon">${ICONS.volume}</div>
         <h2 class="section-title">ระดับเสียงเริ่มต้น</h2>
       </div>
-      <p class="section-desc">ใช้ตอนเริ่มเล่นเพลงใหม่ทุกครั้ง</p>
+      <p class="section-desc">ใช้ตอนบอทเข้าห้องเสียงครั้งใหม่ — ถ้ามีเพลงเล่นอยู่ กดบันทึกแล้วจะปรับให้ทันที</p>
       <div class="field">
         <div class="volume-row">
           <input type="range" id="default_volume" name="default_volume" min="0" max="100" value="${settings.default_volume}"
