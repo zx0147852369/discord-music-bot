@@ -62,13 +62,13 @@ function startDashboard(client) {
   }
 
   app.get('/login', (req, res) => {
-    res.send(loginPage());
+    res.send(loginPage({ bot: botInfo() }));
   });
 
   app.post('/login', (req, res) => {
     const ip = req.ip;
     if (isLockedOut(ip)) {
-      return res.status(429).send(loginPage({ error: 'ลองผิดหลายครั้งเกินไป กรุณารอ 15 นาทีแล้วลองใหม่' }));
+      return res.status(429).send(loginPage({ error: 'ลองผิดหลายครั้งเกินไป กรุณารอ 15 นาทีแล้วลองใหม่', bot: botInfo() }));
     }
     if (passwordMatches(req.body.password || '', password)) {
       loginAttempts.delete(ip);
@@ -76,20 +76,31 @@ function startDashboard(client) {
       return res.redirect('/');
     }
     recordFailedAttempt(ip);
-    return res.status(401).send(loginPage({ error: 'รหัสผ่านไม่ถูกต้อง' }));
+    return res.status(401).send(loginPage({ error: 'รหัสผ่านไม่ถูกต้อง', bot: botInfo() }));
   });
 
   app.get('/logout', (req, res) => {
     req.session.destroy(() => res.redirect('/login'));
   });
 
+  function botInfo() {
+    return {
+      name: client.user?.username || 'Music Bot',
+      avatarUrl: client.user?.displayAvatarURL({ size: 64 }) || null,
+    };
+  }
+
   app.get('/', requireAuth, (req, res) => {
-    const guilds = [...client.guilds.cache.values()].map((g) => ({
-      id: g.id,
-      name: g.name,
-      memberCount: g.memberCount,
-    }));
-    res.send(guildListPage({ guilds }));
+    const guilds = [...client.guilds.cache.values()]
+      .map((g) => ({
+        id: g.id,
+        name: g.name,
+        memberCount: g.memberCount,
+        iconUrl: g.iconURL({ size: 128 }) || null,
+        playing: client.distube.getQueue(g.id) ? true : false,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    res.send(guildListPage({ guilds, bot: botInfo() }));
   });
 
   app.get('/guild/:id', requireAuth, (req, res) => {
@@ -107,12 +118,13 @@ function startDashboard(client) {
     const settings = getGuildSettings(guild.id);
     res.send(
       guildSettingsPage({
-        guild: { id: guild.id, name: guild.name },
+        guild: { id: guild.id, name: guild.name, iconUrl: guild.iconURL({ size: 128 }) || null },
         settings,
         textChannels,
         roles,
         allCommands: [...client.commands.keys()],
         saved: req.query.saved === '1',
+        bot: botInfo(),
       }),
     );
   });
