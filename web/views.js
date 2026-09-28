@@ -668,7 +668,7 @@ function levelChips(basePath, level) {
   return `<div class="filters">${chip('', 'ทั้งหมด')}${chip('info', 'ปกติ')}${chip('warn', 'คำเตือน')}${chip('error', 'ข้อผิดพลาด')}</div>`;
 }
 
-function consoleLogsPage({ lines, level, bot }) {
+function consoleLogsPage({ lines, level, bot, guild }) {
   const rows = lines
     .map(
       (l) => `<div class="cline ${l.level}">
@@ -680,7 +680,7 @@ function consoleLogsPage({ lines, level, bot }) {
 
   return layout({
     title: `บันทึกบอท - ${bot?.name || 'Music Bot'}`,
-    nav: { bot, active: 'console' },
+    nav: { bot, active: 'console', guild },
     body: `
 <main style="max-width:960px;">
   <h1 class="page-title">บันทึกบอท</h1>
@@ -717,7 +717,7 @@ setInterval(refreshConsole, 5000);
   });
 }
 
-function logsPage({ events, level, bot, scope, basePath, tab, guild }) {
+function logsPage({ events, level, bot, scope, basePath, tab, guild, active }) {
 
   const rows = events
     .map(
@@ -732,7 +732,7 @@ function logsPage({ events, level, bot, scope, basePath, tab, guild }) {
 
   return layout({
     title: `${scope.title} - ${bot?.name || 'Music Bot'}`,
-    nav: { bot, active: guild ? 'guildlogs' : 'logs', guild },
+    nav: { bot, active, guild },
     body: `
 <main style="max-width:960px;">
   <h1 class="page-title">${escapeHtml(scope.title)}</h1>
@@ -795,7 +795,7 @@ function sidebar({ bot, active, guild }) {
 </aside>`;
 }
 
-function guildListPage({ guilds, bot }) {
+function guildListPage({ guilds, bot, guild }) {
   const items = guilds
     .map(
       (g) => `<a href="/guild/${g.id}" class="guild-row">
@@ -812,7 +812,7 @@ function guildListPage({ guilds, bot }) {
     .join('');
   return layout({
     title: 'เลือกเซิร์ฟเวอร์ - ' + (bot?.name || 'Music Bot'),
-    nav: { bot, active: 'servers' },
+    nav: { bot, active: 'servers', guild },
     body: `
 <main>
   <h1 class="page-title">เซิร์ฟเวอร์ของคุณ</h1>

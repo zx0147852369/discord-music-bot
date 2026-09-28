@@ -104,6 +104,21 @@ function startDashboard(client) {
     };
   }
 
+  /**
+   * The server a page belongs to, or the last one the viewer opened.
+   *
+   * System-wide pages have no server of their own, and without this the menu's server
+   * section would vanish on them — forcing a trip back through the server list to return.
+   */
+  function menuGuild(req, guild) {
+    if (guild) {
+      req.session.lastGuildId = guild.id;
+      return { id: guild.id, name: guild.name };
+    }
+    const remembered = client.guilds.cache.get(req.session.lastGuildId);
+    return remembered ? { id: remembered.id, name: remembered.name } : null;
+  }
+
   app.get('/', requireAuth, (req, res) => {
     const guilds = [...client.guilds.cache.values()]
       .map((g) => ({
@@ -114,7 +129,7 @@ function startDashboard(client) {
         playing: client.distube.getQueue(g.id) ? true : false,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
-    res.send(guildListPage({ guilds, bot: botInfo() }));
+    res.send(guildListPage({ guilds, bot: botInfo(), guild: menuGuild(req) }));
   });
 
   app.get('/guild/:id', requireAuth, (req, res) => {
@@ -133,6 +148,7 @@ function startDashboard(client) {
       .map((c) => ({ id: c.id, name: c.name, members: c.members.filter((m) => !m.user.bot).size }));
 
     const settings = getGuildSettings(guild.id);
+    menuGuild(req, guild); // remember it for the system-wide pages
     res.send(
       guildSettingsPage({
         guild: { id: guild.id, name: guild.name, iconUrl: guild.iconURL({ size: 128 }) || null },
@@ -302,6 +318,8 @@ function startDashboard(client) {
         scope: { title: 'บันทึกระบบ', subtitle: 'เหตุการณ์ที่ไม่ผูกกับเซิร์ฟเวอร์ใดเซิร์ฟเวอร์หนึ่ง' },
         basePath: '/logs',
         tab: 'events',
+        active: 'logs',
+        guild: menuGuild(req),
       }),
     );
   });
@@ -314,6 +332,7 @@ function startDashboard(client) {
         lines: getConsoleLogs({ level, limit: 300 }),
         level,
         bot: botInfo(),
+        guild: menuGuild(req),
       }),
     );
   });
@@ -326,6 +345,7 @@ function startDashboard(client) {
   app.get('/guild/:id/history', requireAuth, (req, res) => {
     const guild = client.guilds.cache.get(req.params.id);
     if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
+    menuGuild(req, guild); // remember it for the system-wide pages
     res.send(
       historyPage({
         guild: { id: guild.id, name: guild.name, iconUrl: guild.iconURL({ size: 128 }) || null },
@@ -349,7 +369,8 @@ function startDashboard(client) {
         bot: botInfo(),
         scope: { title: `บันทึกของ ${guild.name}`, subtitle: 'ประวัติการเล่นเพลงและการใช้คำสั่ง' },
         basePath: `/guild/${guild.id}/logs`,
-        guild: { id: guild.id, name: guild.name },
+        active: 'guildlogs',
+        guild: menuGuild(req, guild),
       }),
     );
   });
