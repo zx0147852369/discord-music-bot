@@ -2,6 +2,19 @@ const { SlashCommandBuilder } = require('discord.js');
 const { isURL } = require('distube');
 const ytsr = require('@distube/ytsr');
 
+// A URL like ...&list=RDxxxx&start_radio=1 points at YouTube's auto-generated "Radio" mix,
+// which has no fixed end — yt-dlp will hang trying to resolve it as a playlist. Strip the
+// radio-mix params so only the single seed video is played. Real playlists (list=PLxxxx etc.)
+// are left untouched.
+function stripRadioMix(urlString) {
+  const url = new URL(urlString);
+  if (url.searchParams.get('list')?.startsWith('RD')) {
+    url.searchParams.delete('list');
+    url.searchParams.delete('start_radio');
+  }
+  return url.toString();
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('play')
@@ -22,7 +35,9 @@ module.exports = {
       let target = query;
       let label = query;
 
-      if (!isURL(query)) {
+      if (isURL(query)) {
+        target = stripRadioMix(query);
+      } else {
         const result = await ytsr(query, { limit: 1, type: 'video' });
         const video = result.items[0];
         if (!video) {
