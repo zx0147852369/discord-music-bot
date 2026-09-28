@@ -424,6 +424,60 @@ function startDashboard(client) {
     res.redirect(`/guild/${guild.id}#loop`);
   });
 
+  // Start the loop list playing right now: play the first track for instant sound, set the
+  // queue to repeat so it cycles forever, then fill in the rest behind it. Resolving each
+  // song costs a yt-dlp call, so only the first is awaited — the rest stream in in the
+  // background while the queue plays.
+  app.post('/guild/:id/loop/play', requireAuth, express.json(), async (req, res) => {
+    const guild = client.guilds.cache.get(req.params.id);
+    if (!guild) return res.status(404).json({ error: 'ไม่พบเซิร์ฟเวอร์นี้' });
+
+    const loop = getLoopSongs(guild.id);
+    if (!loop.length) return res.status(400).json({ error: 'ยังไม่มีเพลงในเพลย์ลิสต์วนซ้ำ' });
+
+    const existingQueue = client.distube.getQueue(guild.id);
+    const channelId = req.body.channelId || existingQueue?.voice.channel?.id;
+    const voiceChannel = channelId && guild.channels.cache.get(channelId);
+    if (!voiceChannel?.isVoiceBased()) return res.status(400).json({ error: 'กรุณาเลือกห้องเสียง' });
+
+    const me = guild.members.me;
+    if (!voiceChannel.permissionsFor(me)?.has([PermissionsBitField.Flags.Connect, PermissionsBitField.Flags.Speak])) {
+      return res.status(403).json({ error: `บอทไม่มีสิทธิ์เข้า/พูดในห้อง ${voiceChannel.name}` });
+    }
+
+    try {
+      const settings = getGuildSettings(guild.id);
+      const textChannel =
+        (settings.announce_channel_id && guild.channels.cache.get(settings.announce_channel_id)) ||
+        guild.channels.cache.find((c) => c.type === ChannelType.GuildText && c.viewable);
+
+      const first = await resolveSong(client.distube, loop[0].url, { member: me });
+      if (!first) return res.status(502).json({ error: 'เล่นเพลงแรกในลิสต์ไม่สำเร็จ' });
+      await client.distube.play(voiceChannel, first, { member: me, textChannel });
+
+      const queue = client.distube.getQueue(guild.id);
+      if (queue) queue.setRepeatMode(2); // 2 = repeat the whole queue
+
+      logEvent({ guildId: guild.id, type: 'loop_play', actor: req.ip, detail: `${loop.length} เพลง → ${voiceChannel.name}` });
+      res.json({ ok: true, count: loop.length, title: first.name });
+
+      // Queue the remaining songs after replying, so the button returns as soon as sound starts.
+      for (const s of loop.slice(1)) {
+        if (!client.distube.getQueue(guild.id)) break; // stopped while we were loading
+        try {
+          const song = await resolveSong(client.distube, s.url, { member: me });
+          if (song) await client.distube.play(voiceChannel, song, { member: me, textChannel });
+        } catch (e) {
+          console.warn(`Loop queue add failed for ${s.url}:`, e.message);
+        }
+      }
+    } catch (err) {
+      console.error('Loop play failed:', err);
+      logEvent({ guildId: guild.id, level: 'error', type: 'loop_play_failed', actor: req.ip, detail: err.message });
+      if (!res.headersSent) res.status(500).json({ error: 'เริ่มเล่นวนซ้ำไม่สำเร็จ' });
+    }
+  });
+
   app.get('/guild/:id/history', requireAuth, (req, res) => {
     const guild = client.guilds.cache.get(req.params.id);
     if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');

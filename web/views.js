@@ -60,6 +60,8 @@ const EVENT_LABELS = {
   loop_removed: 'ลบเพลงวนซ้ำ',
   loop_full: 'ลิสต์วนซ้ำเต็ม',
   loop_add_failed: 'เพิ่มเพลงวนซ้ำไม่สำเร็จ',
+  loop_play: 'เล่นลิสต์วนซ้ำ',
+  loop_play_failed: 'เล่นลิสต์วนซ้ำไม่สำเร็จ',
   autoplay: 'เล่นต่อเนื่อง',
   autoplay_failed: 'เล่นต่อเนื่องไม่สำเร็จ',
   login_ok: 'เข้าสู่ระบบสำเร็จ',
@@ -72,6 +74,17 @@ function formatTime(ms) {
   return new Intl.DateTimeFormat('th-TH', {
     dateStyle: 'medium',
     timeStyle: 'medium',
+    timeZone: 'Asia/Bangkok',
+  }).format(new Date(ms));
+}
+
+// A compact form for the loop tiles, where a full date+time would overflow the square.
+function formatShortTime(ms) {
+  return new Intl.DateTimeFormat('th-TH', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
     timeZone: 'Asia/Bangkok',
   }).format(new Date(ms));
 }
@@ -485,22 +498,35 @@ ${fontsAndReset()}
   .kv dd { margin: 0; padding: 7px 0; word-break: break-word; font-variant-numeric: tabular-nums; }
   @media (max-width: 560px) { .kv { grid-template-columns: minmax(0, 1fr); } .kv dt { padding-bottom: 0; } }
 
-  .loop-list { margin: 6px 0 4px; }
-  .loop-item {
-    display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center;
-    padding: 10px 0; border-top: 1px solid var(--border); font-size: 14px;
+  .loop-actions { display: flex; align-items: center; gap: 14px; margin: 8px 0 18px; flex-wrap: wrap; }
+  .loop-actions .primary { display: inline-flex; align-items: center; gap: 7px; }
+  .loop-actions .primary svg { width: 15px; height: 15px; }
+  .loop-count { font-size: 13px; color: var(--text-faint); }
+
+  /* Square tiles laid out in an even grid — the same width whatever the title length. */
+  .loop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 4px; }
+  .loop-tile {
+    position: relative; aspect-ratio: 1 / 1;
+    border: 1px solid var(--border); border-radius: 14px;
+    background: var(--surface-2); padding: 14px;
+    display: flex; flex-direction: column; gap: 6px; overflow: hidden;
   }
-  .loop-item:first-child { border-top: none; }
-  .loop-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .loop-title a { color: var(--text); text-decoration: none; }
-  .loop-title a:hover { color: var(--accent); text-decoration: underline; }
-  .loop-meta { font-size: 12px; color: var(--text-faint); white-space: nowrap; }
+  .loop-num { font-size: 12px; font-weight: 700; color: var(--accent); }
+  .loop-tile .loop-title {
+    font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--text); min-width: 0;
+    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .loop-tile .loop-title a { color: var(--text); text-decoration: none; }
+  .loop-tile .loop-title a:hover { color: var(--accent); text-decoration: underline; }
+  .loop-meta { font-size: 11px; color: var(--text-faint); margin-top: auto; white-space: nowrap; }
+  .loop-rm-form { position: absolute; top: 8px; right: 8px; margin: 0; }
   .loop-remove {
     border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-muted);
-    width: 28px; height: 28px; border-radius: 8px; cursor: pointer; font-size: 12px; line-height: 1;
+    width: 24px; height: 24px; border-radius: 7px; cursor: pointer; font-size: 11px; line-height: 1;
   }
   .loop-remove:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
-  .loop-add { display: flex; gap: 10px; margin-top: 12px; }
+  .loop-adders { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+  .loop-add { display: flex; gap: 10px; margin: 0; }
   .loop-add select, .loop-add input { flex: 1; min-width: 0; margin-top: 0; }
   .loop-add .primary { flex-shrink: 0; }
   @media (max-width: 560px) { .loop-add { flex-wrap: wrap; } .loop-add .primary { width: 100%; } }
@@ -915,17 +941,18 @@ function historyRail(guild, recent) {
  * settings form (HTML forms can't nest) and applies each change on its own.
  */
 function loopCard(guild, settings, loopSongs, recentHistory) {
-  const items = loopSongs
+  const tiles = loopSongs
     .map(
-      (s) => `<div class="loop-item">
-        <span class="loop-title">${
-          s.url ? `<a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title)}</a>` : escapeHtml(s.title)
-        }</span>
-        <span class="loop-meta">${s.last_played ? 'เล่นล่าสุด ' + escapeHtml(formatTime(s.last_played)) : 'ยังไม่ถูกเล่น'}</span>
-        <form method="POST" action="/guild/${guild.id}/loop/remove" style="margin:0;">
+      (s, i) => `<div class="loop-tile">
+        <form method="POST" action="/guild/${guild.id}/loop/remove" class="loop-rm-form">
           <input type="hidden" name="url" value="${escapeHtml(s.url)}">
           <button type="submit" class="loop-remove" title="ลบออกจากลิสต์" aria-label="ลบ">✕</button>
         </form>
+        <span class="loop-num">#${i + 1}</span>
+        <span class="loop-title">${
+          s.url ? `<a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title)}</a>` : escapeHtml(s.title)
+        }</span>
+        <span class="loop-meta">${s.last_played ? '▶ ' + escapeHtml(formatShortTime(s.last_played)) : 'ยังไม่ถูกเล่น'}</span>
       </div>`,
     )
     .join('');
@@ -941,31 +968,37 @@ function loopCard(guild, settings, loopSongs, recentHistory) {
       <h2 class="section-title">เพลย์ลิสต์วนซ้ำ</h2>
     </div>
     <p class="section-desc">
-      เลือกเพลงที่อยากให้บอทวนเล่นตอนคิวหมด — ระบบจะวนเฉพาะเพลงในลิสต์นี้ไปเรื่อยๆ ไม่หาเพลงใหม่เข้ามา (ลิสต์ว่าง = หาเพลงแนวเดียวกันมาเล่นแทน)
+      เลือกเพลงที่อยากให้บอทวนเล่น — กด “เล่นลิสต์นี้วนซ้ำ” เพื่อเริ่มเดี๋ยวนี้ (ใช้ห้องเสียงที่เลือกไว้ในการ์ด “เปิดเพลง” ด้านบน) หรือปล่อยให้ระบบวนเองตอนคิวหมด
       ${
         settings.autoplay
           ? ''
-          : '<br><b style="color:var(--warning)">ต้องเปิดสวิตช์ “เล่นต่อเนื่องไม่มีสะดุด” ด้านบนก่อน ลิสต์นี้จึงจะทำงาน</b>'
+          : '<br><b style="color:var(--warning)">ถ้าอยากให้วนเองตอนคิวหมด ต้องเปิดสวิตช์ “เล่นต่อเนื่องไม่มีสะดุด” ด้านบนด้วย</b>'
       }
     </p>
 
-    <div class="loop-list">
-      ${items || '<div class="empty-state">ยังไม่ได้เลือกเพลง</div>'}
+    <div class="loop-actions">
+      <button type="button" class="primary" id="btn-loop-play" ${loopSongs.length ? '' : 'disabled'}>${ICONS.play}เล่นลิสต์นี้วนซ้ำ</button>
+      <span class="loop-count">${loopSongs.length} เพลงในลิสต์</span>
     </div>
 
-    ${
-      historyOptions
-        ? `<form method="POST" action="/guild/${guild.id}/loop/add" class="loop-add">
-      <select name="url" aria-label="เลือกจากประวัติ">${historyOptions}</select>
-      <button type="submit" class="primary">เพิ่มจากประวัติ</button>
-    </form>`
-        : ''
-    }
+    <div class="loop-grid">
+      ${tiles || '<div class="empty-state" style="grid-column:1/-1;">ยังไม่ได้เลือกเพลง</div>'}
+    </div>
 
-    <form method="POST" action="/guild/${guild.id}/loop/add" class="loop-add">
-      <input type="text" name="query" placeholder="วางลิงก์เพลง หรือพิมพ์ชื่อเพลง" autocomplete="off">
-      <button type="submit" class="primary">เพิ่ม</button>
-    </form>
+    <div class="loop-adders">
+      ${
+        historyOptions
+          ? `<form method="POST" action="/guild/${guild.id}/loop/add" class="loop-add">
+        <select name="url" aria-label="เลือกจากประวัติ">${historyOptions}</select>
+        <button type="submit" class="primary">เพิ่มจากประวัติ</button>
+      </form>`
+          : ''
+      }
+      <form method="POST" action="/guild/${guild.id}/loop/add" class="loop-add">
+        <input type="text" name="query" placeholder="วางลิงก์เพลง หรือพิมพ์ชื่อเพลง" autocomplete="off">
+        <button type="submit" class="primary">เพิ่ม</button>
+      </form>
+    </div>
   </div>`;
 }
 
@@ -1227,6 +1260,25 @@ $('btn-playpause').addEventListener('click', () => {
 });
 $('btn-skip').addEventListener('click', () => control('skip'));
 $('btn-stop').addEventListener('click', () => control('stop'));
+
+const loopBtn = $('btn-loop-play');
+if (loopBtn) {
+  loopBtn.addEventListener('click', async () => {
+    const original = loopBtn.innerHTML;
+    loopBtn.disabled = true;
+    loopBtn.textContent = 'กำลังเริ่ม...';
+    try {
+      const data = await post('/loop/play', { channelId: $('voice-channel').value });
+      toast('เริ่มเล่นวนซ้ำ ' + data.count + ' เพลงแล้ว', true);
+      refreshStatus();
+    } catch (e) {
+      toast(e.message, false);
+    } finally {
+      loopBtn.disabled = false;
+      loopBtn.innerHTML = original;
+    }
+  });
+}
 
 refreshStatus();
 setInterval(refreshStatus, 5000);
