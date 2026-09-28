@@ -4,6 +4,9 @@ const path = require('path');
 const { Client, GatewayIntentBits, Collection, EmbedBuilder } = require('discord.js');
 const { DisTube, isVoiceChannelEmpty } = require('distube');
 const { YouTubePlugin } = require('@distube/youtube');
+const { getGuildSettings } = require('./db');
+const { DJ_ONLY_COMMANDS, canUseDjCommand, isCommandDisabled } = require('./lib/permissions');
+const startDashboard = require('./web/server');
 
 process.env.FFMPEG_PATH = process.env.FFMPEG_PATH || require('ffmpeg-static');
 
@@ -27,6 +30,18 @@ client.distube = new DisTube(client, {
 });
 
 client.distube
+  .on('initQueue', async (queue) => {
+    const settings = getGuildSettings(queue.id);
+    queue.setVolume(settings.default_volume);
+    if (settings.announce_channel_id) {
+      try {
+        const channel = await queue.textChannel?.guild.channels.fetch(settings.announce_channel_id);
+        if (channel?.isTextBased()) queue.textChannel = channel;
+      } catch {
+        // announce channel was deleted or no longer accessible; keep the default text channel
+      }
+    }
+  })
   .on('playSong', (queue, song) => {
     queue.textChannel?.send({
       embeds: [
@@ -57,6 +72,7 @@ client.distube
 
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
+  startDashboard(client);
 });
 
 client.on('voiceStateUpdate', (oldState) => {
@@ -71,6 +87,14 @@ client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
   const command = client.commands.get(interaction.commandName);
   if (!command) return;
+
+  if (isCommandDisabled(interaction.guildId, interaction.commandName)) {
+    return interaction.reply({ content: 'คำสั่งนี้ถูกปิดใช้งานในเซิร์ฟเวอร์นี้', ephemeral: true });
+  }
+  if (DJ_ONLY_COMMANDS.has(interaction.commandName) && !canUseDjCommand(interaction.member)) {
+    return interaction.reply({ content: 'คำสั่งนี้ใช้ได้เฉพาะ DJ role หรือแอดมินเท่านั้น', ephemeral: true });
+  }
+
   try {
     await command.execute(interaction, client.distube);
   } catch (err) {
