@@ -86,27 +86,28 @@ function layout({ title, body, bare }) {
 ${fontsAndReset()}
 <style>
   :root {
-    color-scheme: dark;
-    --bg: #0d0e12;
-    --bg-glow-1: #5865f2;
-    --bg-glow-2: #eb459e;
-    --surface: #17181f;
-    --surface-2: #1e2029;
-    --surface-hover: #24262f;
-    --border: rgba(255,255,255,0.08);
-    --border-strong: rgba(255,255,255,0.14);
-    --text: #f2f3f7;
-    --text-muted: #93949f;
-    --text-faint: #62636d;
-    --accent: #5865f2;
-    --accent-hover: #6f79f5;
-    --accent-soft: rgba(88,101,242,0.15);
-    --success: #23a55a;
-    --success-soft: rgba(35,165,90,0.15);
-    --danger: #f23f42;
-    --danger-soft: rgba(242,63,66,0.12);
-    --radius: 14px;
-    --shadow: 0 8px 24px rgba(0,0,0,0.35);
+    color-scheme: light;
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --surface-2: #f2f4f7;
+    --surface-hover: #eceff3;
+    --border: #e4e7ec;
+    --border-strong: #d0d5dd;
+    --text: #101828;
+    --text-muted: #5a6473;
+    --text-faint: #8a93a3;
+    --accent: #3352cc;
+    --accent-hover: #2942ab;
+    --accent-soft: #e8ecfb;
+    --success: #067647;
+    --success-soft: #e4f6ec;
+    --danger: #b42318;
+    --danger-soft: #fdeceb;
+    --warning: #b54708;
+    --warning-soft: #fdf1e3;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(16,24,40,0.05);
+    --shadow-lift: 0 4px 12px rgba(16,24,40,0.08);
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
@@ -116,17 +117,6 @@ ${fontsAndReset()}
     background: var(--bg);
     color: var(--text);
     min-height: 100vh;
-    position: relative;
-  }
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    background:
-      radial-gradient(600px circle at 8% -10%, rgba(88,101,242,0.20), transparent 60%),
-      radial-gradient(500px circle at 100% 0%, rgba(235,69,158,0.12), transparent 55%);
-    pointer-events: none;
   }
   a { color: inherit; }
   ::selection { background: var(--accent-soft); }
@@ -137,8 +127,7 @@ ${fontsAndReset()}
     justify-content: space-between;
     padding: 14px 28px;
     border-bottom: 1px solid var(--border);
-    backdrop-filter: blur(10px);
-    background: rgba(13,14,18,0.7);
+    background: var(--surface);
     position: sticky;
     top: 0;
     z-index: 10;
@@ -161,7 +150,7 @@ ${fontsAndReset()}
   .page-sub { color: var(--text-muted); font-size: 14px; margin: 0 0 28px; }
 
   .card {
-    background: linear-gradient(180deg, var(--surface) 0%, var(--surface) 100%);
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 26px;
@@ -239,9 +228,9 @@ ${fontsAndReset()}
     -webkit-appearance: none;
     width: 18px; height: 18px; border-radius: 50%;
     background: var(--accent);
-    border: 3px solid #fff2;
+    border: 3px solid var(--surface);
     cursor: pointer;
-    box-shadow: 0 2px 6px rgba(88,101,242,0.5);
+    box-shadow: 0 1px 3px rgba(16,24,40,0.2);
     margin-top: -6px; /* centre the thumb on the 6px track */
   }
   input[type=range]::-moz-range-thumb {
@@ -301,7 +290,7 @@ ${fontsAndReset()}
     cursor: pointer;
     margin-top: 28px;
     transition: background .15s ease, transform .1s ease;
-    box-shadow: 0 4px 14px rgba(88,101,242,0.35);
+    box-shadow: var(--shadow);
   }
   button.primary:hover { background: var(--accent-hover); }
   button.primary:active { transform: scale(.98); }
@@ -382,13 +371,13 @@ ${fontsAndReset()}
   .tbtn:hover:not(:disabled) { background: var(--surface-hover); }
   .tbtn:disabled { opacity: .4; cursor: not-allowed; }
   .tbtn svg { width: 15px; height: 15px; }
-  .tbtn.danger { color: #ff8789; border-color: rgba(242,63,66,0.35); }
+  .tbtn.danger { color: var(--danger); border-color: #f3c3bf; }
   .tbtn.danger:hover:not(:disabled) { background: var(--danger-soft); }
   .toast {
     margin-top: 14px; font-size: 13px; padding: 10px 14px; border-radius: 9px; display: none;
   }
   .toast.ok { display: block; background: var(--success-soft); color: var(--success); }
-  .toast.err { display: block; background: var(--danger-soft); color: #ff8789; }
+  .toast.err { display: block; background: var(--danger-soft); color: var(--danger); }
 
   .filters { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
   .chip {
@@ -405,7 +394,7 @@ ${fontsAndReset()}
     color: var(--text-faint); font-weight: 600; padding: 0 12px 10px; white-space: nowrap;
   }
   .log-table td { padding: 11px 12px; border-top: 1px solid var(--border); vertical-align: top; }
-  .log-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .log-table tr:hover td { background: var(--surface-2); }
   .log-time { color: var(--text-faint); white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 12.5px; }
   .log-actor { color: var(--text-muted); white-space: nowrap; }
   .log-detail { color: var(--text); word-break: break-word; }
@@ -413,10 +402,35 @@ ${fontsAndReset()}
     display: inline-block; padding: 3px 9px; border-radius: 6px;
     font-size: 12px; font-weight: 600; white-space: nowrap;
   }
-  .lvl.info { background: var(--accent-soft); color: #9aa4f8; }
-  .lvl.warn { background: rgba(240,178,50,0.15); color: #f0b232; }
-  .lvl.error { background: var(--danger-soft); color: #ff8789; }
+  .lvl.info { background: var(--accent-soft); color: var(--accent); }
+  .lvl.warn { background: var(--warning-soft); color: var(--warning); }
+  .lvl.error { background: var(--danger-soft); color: var(--danger); }
   .table-scroll { overflow-x: auto; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .stat {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px 20px; box-shadow: var(--shadow);
+  }
+  .stat-num { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .stat-label { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+
+  .top-list { margin-top: 14px; }
+  .top-row {
+    display: grid; grid-template-columns: 26px 1fr auto; gap: 12px; align-items: center;
+    padding: 10px 0; border-top: 1px solid var(--border); font-size: 14px;
+  }
+  .top-row:first-child { border-top: none; }
+  .top-rank {
+    font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 600;
+    color: var(--text-faint); text-align: right;
+  }
+  .top-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .top-title a { color: var(--text); text-decoration: none; }
+  .top-title a:hover { color: var(--accent); text-decoration: underline; }
+  .top-plays { font-size: 12.5px; color: var(--text-muted); white-space: nowrap; }
+  .log-detail a { color: var(--text); text-decoration: none; }
+  .log-detail a:hover { color: var(--accent); text-decoration: underline; }
 
   .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
   .tab {
@@ -427,7 +441,7 @@ ${fontsAndReset()}
   .tab.active { color: var(--text); border-bottom-color: var(--accent); }
 
   .console {
-    background: #0a0b0e; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
     padding: 14px; max-height: 65vh; overflow: auto;
     font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
     font-size: 12.5px; line-height: 1.65;
@@ -435,9 +449,9 @@ ${fontsAndReset()}
   .cline { display: flex; gap: 10px; padding: 2px 0; }
   .cline .ct { color: var(--text-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .cline .cx { white-space: pre-wrap; word-break: break-word; flex: 1; }
-  .cline.warn .cx { color: #f0b232; }
-  .cline.error .cx { color: #ff8789; }
-  .cline.info .cx { color: #c9ccd4; }
+  .cline.warn .cx { color: var(--warning); }
+  .cline.error .cx { color: var(--danger); }
+  .cline.info .cx { color: var(--text); }
 
   .login-card { max-width: 380px; margin: 12vh auto 0; text-align: center; }
   .login-logo { margin: 0 auto 18px; }
@@ -445,8 +459,8 @@ ${fontsAndReset()}
   .login-sub { font-size: 13.5px; color: var(--text-muted); margin: 0 0 26px; }
   .login-card form { text-align: left; }
   .error-box {
-    background: var(--danger-soft); color: #ff8789;
-    border: 1px solid rgba(242,63,66,0.35);
+    background: var(--danger-soft); color: var(--danger);
+    border: 1px solid #f3c3bf;
     padding: 10px 14px; border-radius: 9px;
     font-size: 13px; margin-top: 16px;
   }
@@ -489,6 +503,93 @@ function loginPage({ error, bot } = {}) {
       </form>
     </div>
   </div>
+</main>`,
+  });
+}
+
+function formatDuration(seconds) {
+  if (!seconds) return '-';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function historyPage({ guild, history, top, stats, autoplay, bot }) {
+  const rows = history
+    .map(
+      (h) => `<tr>
+        <td class="log-time">${escapeHtml(formatTime(h.played_at))}</td>
+        <td class="log-detail">${
+          h.url ? `<a href="${escapeHtml(h.url)}" target="_blank" rel="noopener">${escapeHtml(h.title)}</a>` : escapeHtml(h.title)
+        }</td>
+        <td class="log-actor">${escapeHtml(formatDuration(h.duration))}</td>
+        <td class="log-actor">${h.auto ? '<span class="lvl info">อัตโนมัติ</span>' : escapeHtml(h.requested_by || '—')}</td>
+      </tr>`,
+    )
+    .join('');
+
+  const topRows = top
+    .map(
+      (t, i) => `<div class="top-row">
+        <span class="top-rank">${i + 1}</span>
+        <span class="top-title">${
+          t.url ? `<a href="${escapeHtml(t.url)}" target="_blank" rel="noopener">${escapeHtml(t.title)}</a>` : escapeHtml(t.title)
+        }</span>
+        <span class="top-plays">${t.plays} ครั้ง</span>
+      </div>`,
+    )
+    .join('');
+
+  return layout({
+    title: `ประวัติเพลง ${guild.name} - ${bot?.name || 'Music Bot'}`,
+    body: `
+${headerNav(bot)}
+<main style="max-width:960px;">
+  <a href="/guild/${guild.id}" class="icon-link" style="margin-bottom:12px; padding-left:0;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    กลับไปหน้าตั้งค่า
+  </a>
+  <h1 class="page-title">ประวัติเพลงของ ${escapeHtml(guild.name)}</h1>
+  <p class="page-sub">
+    บอทใช้ประวัตินี้เลือกเพลงแนวเดียวกันมาเล่นต่อเมื่อคิวหมด
+    — ตอนนี้ระบบเล่นต่อเนื่อง<b>${autoplay ? 'เปิดอยู่' : 'ปิดอยู่'}</b>
+  </p>
+
+  <div class="stat-grid">
+    <div class="stat"><div class="stat-num">${stats.total || 0}</div><div class="stat-label">เพลงที่เล่นทั้งหมด</div></div>
+    <div class="stat"><div class="stat-num">${stats.unique_songs || 0}</div><div class="stat-label">เพลงที่ไม่ซ้ำกัน</div></div>
+    <div class="stat"><div class="stat-num">${stats.auto_plays || 0}</div><div class="stat-label">เล่นต่อเนื่องอัตโนมัติ</div></div>
+  </div>
+
+  ${
+    topRows
+      ? `<div class="card">
+          <div class="section-head">
+            <div class="section-icon">${ICONS.note}</div>
+            <h2 class="section-title">เพลงที่เปิดบ่อยที่สุด</h2>
+          </div>
+          <div class="top-list">${topRows}</div>
+        </div>`
+      : ''
+  }
+
+  <div class="card">
+    <div class="section-head">
+      <div class="section-icon">${ICONS.log}</div>
+      <h2 class="section-title">เล่นล่าสุด</h2>
+    </div>
+    <div style="margin-top:16px;">
+    ${
+      rows
+        ? `<div class="table-scroll"><table class="log-table">
+             <thead><tr><th>เวลา</th><th>เพลง</th><th>ความยาว</th><th>ขอโดย</th></tr></thead>
+             <tbody>${rows}</tbody>
+           </table></div>`
+        : '<div class="empty-state">ยังไม่มีประวัติ — ลองสั่งเพลงสักเพลงก่อน</div>'
+    }
+    </div>
+  </div>
+  <p class="muted" style="text-align:center; font-size:12.5px;">แสดงล่าสุด 200 เพลง · เก็บสะสมสูงสุด 5,000 เพลง</p>
 </main>`,
   });
 }
@@ -780,6 +881,21 @@ ${headerNav(bot)}
 
     <div class="card">
       <div class="section-head">
+        <div class="section-icon">${ICONS.note}</div>
+        <h2 class="section-title">เล่นเพลงต่อเนื่องอัตโนมัติ</h2>
+      </div>
+      <p class="section-desc">เมื่อเล่นครบคิว บอทจะหาเพลงแนวเดียวกับเพลงล่าสุดมาเล่นต่อเอง โดยดูจากประวัติของเซิร์ฟเวอร์นี้</p>
+      <label class="cmd-toggle" style="margin-top:14px; max-width:280px;">
+        <span class="cmd-name" style="font-family:inherit;">เล่นต่อเนื่องไม่มีสะดุด</span>
+        <span class="switch">
+          <input type="checkbox" name="autoplay" ${settings.autoplay ? 'checked' : ''}>
+          <span class="track"><span class="thumb"></span></span>
+        </span>
+      </label>
+    </div>
+
+    <div class="card">
+      <div class="section-head">
         <div class="section-icon">${ICONS.toggle}</div>
         <h2 class="section-title">เปิด/ปิดคำสั่ง</h2>
       </div>
@@ -793,11 +909,22 @@ ${headerNav(bot)}
     </div>
   </form>
 
-  <a href="/guild/${guild.id}/logs" class="guild-row" style="margin-top:20px;">
+  <a href="/guild/${guild.id}/history" class="guild-row" style="margin-top:20px;">
+    <div class="section-icon">${ICONS.note}</div>
+    <div class="meta">
+      <div class="g-name">ประวัติเพลง</div>
+      <div class="g-sub">เพลงที่เคยเล่น เพลงยอดนิยม และสถิติของเซิร์ฟเวอร์นี้</div>
+    </div>
+    <span class="chevron">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="m9 6 6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </span>
+  </a>
+
+  <a href="/guild/${guild.id}/logs" class="guild-row" style="margin-top:10px;">
     <div class="section-icon">${ICONS.log}</div>
     <div class="meta">
-      <div class="g-name">ดูบันทึกของเซิร์ฟเวอร์นี้</div>
-      <div class="g-sub">ประวัติเพลงที่เล่น การใช้คำสั่ง และข้อผิดพลาด</div>
+      <div class="g-name">บันทึกการทำงาน</div>
+      <div class="g-sub">การใช้คำสั่ง การตั้งค่า และข้อผิดพลาด</div>
     </div>
     <span class="chevron">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="m9 6 6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -911,4 +1038,4 @@ setInterval(refreshStatus, 5000);
   });
 }
 
-module.exports = { loginPage, guildListPage, guildSettingsPage, logsPage, consoleLogsPage };
+module.exports = { loginPage, guildListPage, guildSettingsPage, logsPage, consoleLogsPage, historyPage };

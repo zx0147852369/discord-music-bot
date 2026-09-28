@@ -5,8 +5,9 @@ const fs = require('fs');
 const path = require('path');
 const { Client, GatewayIntentBits, Collection, EmbedBuilder } = require('discord.js');
 const { DisTube, isVoiceChannelEmpty } = require('distube');
-const { YtDlpPlugin } = require('./lib/ytDlpPlugin');
-const { getGuildSettings, logEvent } = require('./db');
+const { YtDlpPlugin, resolveSong } = require('./lib/ytDlpPlugin');
+const { getGuildSettings, logEvent, recordSongPlay } = require('./db');
+const { pickNextSong } = require('./lib/autoplay');
 const { DJ_ONLY_COMMANDS, canUseDjCommand, isCommandDisabled } = require('./lib/permissions');
 const startDashboard = require('./web/server');
 
@@ -55,21 +56,31 @@ client.distube
     }
   })
   .on('playSong', (queue, song) => {
+    const auto = Boolean(song.metadata?.auto);
     logEvent({
       guildId: queue.id,
       type: 'now_playing',
       actor: song.user?.username || null,
-      detail: `${song.name} (${song.formattedDuration}) · ${queue.voice.channel?.name || '-'}`,
+      detail: `${song.name} (${song.formattedDuration}) · ${queue.voice.channel?.name || '-'}${auto ? ' · อัตโนมัติ' : ''}`,
+    });
+    recordSongPlay({
+      guildId: queue.id,
+      title: song.name,
+      url: song.url,
+      source: song.source,
+      duration: song.duration,
+      requestedBy: song.user?.username || null,
+      auto,
     });
     queue.textChannel?.send({
       embeds: [
         new EmbedBuilder()
-          .setColor(0x5865f2)
-          .setTitle('กำลังเล่นเพลง')
+          .setColor(auto ? 0x23a55a : 0x5865f2)
+          .setTitle(auto ? 'เล่นต่อเนื่องอัตโนมัติ' : 'กำลังเล่นเพลง')
           .setDescription(`[${song.name}](${song.url})`)
           .addFields(
             { name: 'ความยาว', value: song.formattedDuration, inline: true },
-            { name: 'ขอโดย', value: `${song.user}`, inline: true },
+            { name: 'ขอโดย', value: auto ? 'ระบบเล่นต่อเนื่อง' : `${song.user}`, inline: true },
           ),
       ],
     });
@@ -85,7 +96,8 @@ client.distube
   })
   .on('finish', (queue) => {
     logEvent({ guildId: queue.id, type: 'queue_finished' });
-    queue.textChannel?.send('เล่นครบทุกเพลงในคิวแล้ว');
+    // Captured now: DisTube deletes the queue as soon as this handler yields.
+    continueListening(queue.id, queue.songs[0] || queue.previousSongs.at(-1), queue.voice.channel, queue.textChannel);
   })
   .on('disconnect', (queue) => {
     logEvent({ guildId: queue.id, type: 'voice_left' });
@@ -96,6 +108,57 @@ client.distube
     logEvent({ guildId: queue?.id, level: 'error', type: 'playback_error', detail: e?.message ?? String(e) });
     queue?.textChannel?.send(`เกิดข้อผิดพลาด: ${e?.message ?? e}`.slice(0, 1900));
   });
+
+// Guards against two autoplay attempts overlapping for one server.
+const autoplayInFlight = new Set();
+
+/**
+ * Keep the music going after a queue empties: find something similar to what just played
+ * and start it in the same voice channel. Silent no-op when the server has it turned off.
+ */
+async function continueListening(guildId, lastSong, voiceChannel, textChannel) {
+  const settings = getGuildSettings(guildId);
+  if (!settings.autoplay) {
+    textChannel?.send('เล่นครบทุกเพลงในคิวแล้ว');
+    return;
+  }
+  if (autoplayInFlight.has(guildId) || !voiceChannel) return;
+  autoplayInFlight.add(guildId);
+
+  try {
+    const pick = await pickNextSong(guildId, lastSong);
+    if (!pick) {
+      textChannel?.send('เล่นครบทุกเพลงในคิวแล้ว (ยังไม่มีเพลงให้เล่นต่ออัตโนมัติ)');
+      return;
+    }
+    // DisTube removes the finished queue right after emitting; bail out if a real request
+    // got in first while we were looking things up.
+    if (client.distube.getQueue(guildId)) return;
+
+    const song = await resolveSong(client.distube, pick.url, {
+      member: voiceChannel.guild.members.me,
+      metadata: { auto: true },
+    });
+    if (!song) throw new Error(`resolve returned nothing for ${pick.url}`);
+
+    await client.distube.play(voiceChannel, song, {
+      member: voiceChannel.guild.members.me,
+      textChannel,
+      metadata: { auto: true },
+    });
+    logEvent({
+      guildId,
+      type: 'autoplay',
+      detail: `${song.name} (${pick.reason === 'related' ? 'เพลงแนวเดียวกัน' : 'จากประวัติ'})`,
+    });
+  } catch (e) {
+    console.error('Autoplay failed:', e.message);
+    logEvent({ guildId, level: 'warn', type: 'autoplay_failed', detail: e.message });
+    textChannel?.send('เล่นครบทุกเพลงในคิวแล้ว (หาเพลงต่ออัตโนมัติไม่สำเร็จ)');
+  } finally {
+    autoplayInFlight.delete(guildId);
+  }
+}
 
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);

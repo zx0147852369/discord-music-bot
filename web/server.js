@@ -2,10 +2,18 @@ const crypto = require('crypto');
 const express = require('express');
 const session = require('express-session');
 const { ChannelType, PermissionsBitField } = require('discord.js');
-const { getGuildSettings, saveGuildSettings, logEvent, getEvents } = require('../db');
+const {
+  getGuildSettings,
+  saveGuildSettings,
+  logEvent,
+  getEvents,
+  getSongHistory,
+  getTopSongs,
+  getHistoryStats,
+} = require('../db');
 const { resolveSong } = require('../lib/ytDlpPlugin');
 const { getConsoleLogs } = require('../lib/consoleCapture');
-const { loginPage, guildListPage, guildSettingsPage, logsPage, consoleLogsPage } = require('./views');
+const { loginPage, guildListPage, guildSettingsPage, logsPage, consoleLogsPage, historyPage } = require('./views');
 
 
 const loginAttempts = new Map(); // ip -> { count, resetAt }
@@ -150,12 +158,14 @@ function startDashboard(client) {
     const volume = Math.min(100, Math.max(0, parseInt(req.body.default_volume, 10) || 0));
 
     const stay24_7 = req.body.stay_24_7 === 'on';
+    const autoplay = req.body.autoplay === 'on';
     saveGuildSettings(guild.id, {
       default_volume: volume,
       announce_channel_id: req.body.announce_channel_id || null,
       dj_role_id: req.body.dj_role_id || null,
       disabled_commands,
       stay_24_7: stay24_7,
+      autoplay,
     });
     // Without this the new volume would only take effect the next time the bot joins a
     // voice channel, which makes the slider look broken while music is playing.
@@ -168,6 +178,7 @@ function startDashboard(client) {
       actor: req.ip,
       detail:
         `เสียง ${volume}%${queue ? ' (ปรับให้เพลงที่เล่นอยู่ด้วย)' : ''} · อยู่ในห้อง 24/7: ${stay24_7 ? 'เปิด' : 'ปิด'}` +
+        ` · เล่นต่อเนื่อง: ${autoplay ? 'เปิด' : 'ปิด'}` +
         (disabled_commands.length ? ` · ปิดคำสั่ง: ${disabled_commands.join(', ')}` : ''),
     });
 
@@ -309,6 +320,21 @@ function startDashboard(client) {
   app.get('/logs/console.json', requireAuth, (req, res) => {
     const level = ['info', 'warn', 'error'].includes(req.query.level) ? req.query.level : null;
     res.json({ lines: getConsoleLogs({ level, limit: 300 }) });
+  });
+
+  app.get('/guild/:id/history', requireAuth, (req, res) => {
+    const guild = client.guilds.cache.get(req.params.id);
+    if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
+    res.send(
+      historyPage({
+        guild: { id: guild.id, name: guild.name, iconUrl: guild.iconURL({ size: 128 }) || null },
+        history: getSongHistory(guild.id, 200),
+        top: getTopSongs(guild.id, 10),
+        stats: getHistoryStats(guild.id),
+        autoplay: getGuildSettings(guild.id).autoplay,
+        bot: botInfo(),
+      }),
+    );
   });
 
   app.get('/guild/:id/logs', requireAuth, (req, res) => {
