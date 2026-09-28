@@ -32,6 +32,12 @@ db.exec(`
   )
 `);
 
+// Added after the table shipped, so bring existing databases up to date.
+const settingsColumns = db.prepare('PRAGMA table_info(guild_settings)').all().map((c) => c.name);
+if (!settingsColumns.includes('stay_24_7')) {
+  db.exec('ALTER TABLE guild_settings ADD COLUMN stay_24_7 INTEGER NOT NULL DEFAULT 1');
+}
+
 // Activity log. guild_id is NULL for events that are not tied to a server (dashboard
 // logins, bot start-up).
 db.exec(`
@@ -102,23 +108,25 @@ const DEFAULTS = {
   announce_channel_id: null,
   dj_role_id: null,
   disabled_commands: [],
+  stay_24_7: true,
 };
 
 const selectStmt = db.prepare('SELECT * FROM guild_settings WHERE guild_id = ?');
 const upsertStmt = db.prepare(`
-  INSERT INTO guild_settings (guild_id, default_volume, announce_channel_id, dj_role_id, disabled_commands)
-  VALUES (@guild_id, @default_volume, @announce_channel_id, @dj_role_id, @disabled_commands)
+  INSERT INTO guild_settings (guild_id, default_volume, announce_channel_id, dj_role_id, disabled_commands, stay_24_7)
+  VALUES (@guild_id, @default_volume, @announce_channel_id, @dj_role_id, @disabled_commands, @stay_24_7)
   ON CONFLICT(guild_id) DO UPDATE SET
     default_volume = excluded.default_volume,
     announce_channel_id = excluded.announce_channel_id,
     dj_role_id = excluded.dj_role_id,
-    disabled_commands = excluded.disabled_commands
+    disabled_commands = excluded.disabled_commands,
+    stay_24_7 = excluded.stay_24_7
 `);
 
 function getGuildSettings(guildId) {
   const row = selectStmt.get(guildId);
   if (!row) return { ...DEFAULTS, guild_id: guildId };
-  return { ...row, disabled_commands: JSON.parse(row.disabled_commands) };
+  return { ...row, disabled_commands: JSON.parse(row.disabled_commands), stay_24_7: Boolean(row.stay_24_7) };
 }
 
 function saveGuildSettings(guildId, settings) {
@@ -130,6 +138,7 @@ function saveGuildSettings(guildId, settings) {
     announce_channel_id: merged.announce_channel_id || null,
     dj_role_id: merged.dj_role_id || null,
     disabled_commands: JSON.stringify(merged.disabled_commands || []),
+    stay_24_7: merged.stay_24_7 ? 1 : 0,
   });
   return getGuildSettings(guildId);
 }

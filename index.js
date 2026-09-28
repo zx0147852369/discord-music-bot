@@ -105,11 +105,22 @@ client.once('ready', () => {
 
 client.on('voiceStateUpdate', (oldState) => {
   const queue = client.distube.getQueue(oldState.guild.id);
-  if (queue && isVoiceChannelEmpty(oldState)) {
-    logEvent({ guildId: oldState.guild.id, type: 'voice_left', detail: 'ไม่มีคนอยู่ในห้องเสียง' });
-    queue.textChannel?.send('ไม่มีคนอยู่ในห้องเสียงแล้ว บอทออกจากห้อง');
-    queue.stop().catch(console.error);
-  }
+  if (!queue || !isVoiceChannelEmpty(oldState)) return;
+
+  // In 24/7 mode the bot keeps its seat in the voice channel; it only stops the music,
+  // since nobody is left to hear it.
+  const stay = getGuildSettings(oldState.guild.id).stay_24_7;
+  queue.stop().catch(console.error);
+  if (!stay) client.distube.voices.leave(oldState.guild.id);
+
+  logEvent({
+    guildId: oldState.guild.id,
+    type: stay ? 'playback_stopped' : 'voice_left',
+    detail: stay ? 'ไม่มีคนในห้องเสียง หยุดเพลงแต่ยังอยู่ในห้อง' : 'ไม่มีคนอยู่ในห้องเสียง',
+  });
+  queue.textChannel?.send(
+    stay ? 'ไม่มีคนอยู่ในห้องเสียงแล้ว หยุดเพลงไว้ก่อน (บอทยังอยู่ในห้อง)' : 'ไม่มีคนอยู่ในห้องเสียงแล้ว บอทออกจากห้อง',
+  );
 });
 
 client.on('interactionCreate', async (interaction) => {

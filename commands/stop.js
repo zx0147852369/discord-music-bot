@@ -6,6 +6,6 @@ module.exports = {
     const queue = distube.getQueue(interaction.guildId);
     if (!queue) return interaction.reply({ content: 'ตอนนี้ไม่มีเพลงเล่นอยู่', ephemeral: true });
     await queue.stop();
-    await interaction.reply('หยุดเพลงและล้างคิวแล้ว');
+    await interaction.reply('หยุดเพลงและล้างคิวแล้ว (บอทยังอยู่ในห้องเสียง — ใช้ /leave ถ้าต้องการให้ออก)');
   },
 };

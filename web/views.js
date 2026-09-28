@@ -749,6 +749,21 @@ ${headerNav(bot)}
 
     <div class="card">
       <div class="section-head">
+        <div class="section-icon">${ICONS.channel}</div>
+        <h2 class="section-title">อยู่ในห้องเสียงตลอด (24/7)</h2>
+      </div>
+      <p class="section-desc">เล่นเพลงจบคิวหรือไม่มีคนในห้องแล้ว บอทจะยังอยู่ในห้องเดิม สั่งเพลงต่อได้ทันที (ใช้ /leave ถ้าต้องการให้ออก)</p>
+      <label class="cmd-toggle" style="margin-top:14px; max-width:280px;">
+        <span class="cmd-name" style="font-family:inherit;">อยู่ในห้องตลอดเวลา</span>
+        <span class="switch">
+          <input type="checkbox" name="stay_24_7" ${settings.stay_24_7 ? 'checked' : ''}>
+          <span class="track"><span class="thumb"></span></span>
+        </span>
+      </label>
+    </div>
+
+    <div class="card">
+      <div class="section-head">
         <div class="section-icon">${ICONS.toggle}</div>
         <h2 class="section-title">เปิด/ปิดคำสั่ง</h2>
       </div>

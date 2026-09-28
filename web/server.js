@@ -149,17 +149,21 @@ function startDashboard(client) {
 
     const volume = Math.min(100, Math.max(0, parseInt(req.body.default_volume, 10) || 0));
 
+    const stay24_7 = req.body.stay_24_7 === 'on';
     saveGuildSettings(guild.id, {
       default_volume: volume,
       announce_channel_id: req.body.announce_channel_id || null,
       dj_role_id: req.body.dj_role_id || null,
       disabled_commands,
+      stay_24_7: stay24_7,
     });
     logEvent({
       guildId: guild.id,
       type: 'settings_saved',
       actor: req.ip,
-      detail: `เสียง ${volume}%${disabled_commands.length ? ` · ปิดคำสั่ง: ${disabled_commands.join(', ')}` : ''}`,
+      detail:
+        `เสียง ${volume}% · อยู่ในห้อง 24/7: ${stay24_7 ? 'เปิด' : 'ปิด'}` +
+        (disabled_commands.length ? ` · ปิดคำสั่ง: ${disabled_commands.join(', ')}` : ''),
     });
 
     res.redirect(`/guild/${guild.id}?saved=1`);
