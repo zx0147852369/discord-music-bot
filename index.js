@@ -92,7 +92,11 @@ client.distube
       actor: song.user?.username || null,
       detail: `${song.name} (${song.formattedDuration})`,
     });
-    queue.textChannel?.send(`เพิ่มเข้าคิวแล้ว: **${song.name}** (${song.formattedDuration})`);
+    // Bulk adds (e.g. loading a whole loop playlist from the dashboard) are flagged silent so
+    // the channel isn't flooded with one "added to queue" line per track.
+    if (!song.metadata?.silent) {
+      queue.textChannel?.send(`เพิ่มเข้าคิวแล้ว: **${song.name}** (${song.formattedDuration})`);
+    }
   })
   .on('finish', (queue) => {
     logEvent({ guildId: queue.id, type: 'queue_finished' });

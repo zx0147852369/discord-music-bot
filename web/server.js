@@ -451,9 +451,13 @@ function startDashboard(client) {
         (settings.announce_channel_id && guild.channels.cache.get(settings.announce_channel_id)) ||
         guild.channels.cache.find((c) => c.type === ChannelType.GuildText && c.viewable);
 
-      const first = await resolveSong(client.distube, loop[0].url, { member: me });
+      // Mark every track as a silent bulk-add so the bot doesn't post a "เพิ่มเข้าคิวแล้ว"
+      // line for each of them — filling a whole loop list would otherwise spam the channel.
+      const silent = { member: me, metadata: { silent: true } };
+
+      const first = await resolveSong(client.distube, loop[0].url, silent);
       if (!first) return res.status(502).json({ error: 'เล่นเพลงแรกในลิสต์ไม่สำเร็จ' });
-      await client.distube.play(voiceChannel, first, { member: me, textChannel });
+      await client.distube.play(voiceChannel, first, { member: me, textChannel, metadata: { silent: true } });
 
       const queue = client.distube.getQueue(guild.id);
       if (queue) queue.setRepeatMode(2); // 2 = repeat the whole queue
@@ -465,8 +469,8 @@ function startDashboard(client) {
       for (const s of loop.slice(1)) {
         if (!client.distube.getQueue(guild.id)) break; // stopped while we were loading
         try {
-          const song = await resolveSong(client.distube, s.url, { member: me });
-          if (song) await client.distube.play(voiceChannel, song, { member: me, textChannel });
+          const song = await resolveSong(client.distube, s.url, silent);
+          if (song) await client.distube.play(voiceChannel, song, { member: me, textChannel, metadata: { silent: true } });
         } catch (e) {
           console.warn(`Loop queue add failed for ${s.url}:`, e.message);
         }
