@@ -3,9 +3,10 @@ const express = require('express');
 const session = require('express-session');
 const { ChannelType, PermissionsBitField } = require('discord.js');
 const { isURL } = require('distube');
-const { getGuildSettings, saveGuildSettings } = require('../db');
+const { getGuildSettings, saveGuildSettings, logEvent, getEvents } = require('../db');
 const { searchOne } = require('../lib/ytDlpPlugin');
-const { loginPage, guildListPage, guildSettingsPage } = require('./views');
+const { getConsoleLogs } = require('../lib/consoleCapture');
+const { loginPage, guildListPage, guildSettingsPage, logsPage, consoleLogsPage } = require('./views');
 
 // Matches the /play command: YouTube is unusable from a datacenter IP unless a proxy is set.
 const searchSource = process.env.YTDLP_PROXY ? 'youtube' : 'soundcloud';
@@ -73,14 +74,17 @@ function startDashboard(client) {
   app.post('/login', (req, res) => {
     const ip = req.ip;
     if (isLockedOut(ip)) {
+      logEvent({ level: 'warn', type: 'login_locked', actor: ip });
       return res.status(429).send(loginPage({ error: 'ลองผิดหลายครั้งเกินไป กรุณารอ 15 นาทีแล้วลองใหม่', bot: botInfo() }));
     }
     if (passwordMatches(req.body.password || '', password)) {
       loginAttempts.delete(ip);
       req.session.loggedIn = true;
+      logEvent({ type: 'login_ok', actor: ip });
       return res.redirect('/');
     }
     recordFailedAttempt(ip);
+    logEvent({ level: 'warn', type: 'login_failed', actor: ip });
     return res.status(401).send(loginPage({ error: 'รหัสผ่านไม่ถูกต้อง', bot: botInfo() }));
   });
 
@@ -154,6 +158,12 @@ function startDashboard(client) {
       dj_role_id: req.body.dj_role_id || null,
       disabled_commands,
     });
+    logEvent({
+      guildId: guild.id,
+      type: 'settings_saved',
+      actor: req.ip,
+      detail: `เสียง ${volume}%${disabled_commands.length ? ` · ปิดคำสั่ง: ${disabled_commands.join(', ')}` : ''}`,
+    });
 
     res.redirect(`/guild/${guild.id}?saved=1`);
   });
@@ -208,10 +218,23 @@ function startDashboard(client) {
         label = found.title;
       }
 
+      logEvent({
+        guildId: guild.id,
+        type: 'dashboard_play',
+        actor: req.ip,
+        detail: `${label} → ${voiceChannel.name}`,
+      });
       await client.distube.play(voiceChannel, target, { member: me, textChannel });
       res.json({ ok: true, title: label });
     } catch (err) {
       console.error('Dashboard play failed:', err);
+      logEvent({
+        guildId: guild.id,
+        level: 'error',
+        type: 'dashboard_play_failed',
+        actor: req.ip,
+        detail: `${query}: ${err.message}`,
+      });
       res.status(500).json({ error: 'เล่นเพลงไม่สำเร็จ ลองค้นด้วยชื่อเพลงแทนลิงก์' });
     }
   });
@@ -242,11 +265,65 @@ function startDashboard(client) {
         default:
           return res.status(400).json({ error: 'คำสั่งไม่ถูกต้อง' });
       }
+      logEvent({
+        guildId: req.params.id,
+        type: 'dashboard_control',
+        actor: req.ip,
+        detail: req.body.action === 'volume' ? `volume ${req.body.level}%` : req.body.action,
+      });
       res.json({ ok: true });
     } catch (err) {
       // skip() throws when nothing is queued after the current song
       res.status(400).json({ error: err.message || 'ทำคำสั่งไม่สำเร็จ' });
     }
+  });
+
+  // Activity log. /logs shows events that are not tied to a server (logins, start-ups);
+  // /guild/:id/logs shows that server's playback history.
+  app.get('/logs', requireAuth, (req, res) => {
+    const level = ['info', 'warn', 'error'].includes(req.query.level) ? req.query.level : null;
+    res.send(
+      logsPage({
+        events: getEvents({ guildId: null, level, limit: 300 }),
+        level,
+        bot: botInfo(),
+        scope: { title: 'บันทึกระบบ', subtitle: 'เหตุการณ์ที่ไม่ผูกกับเซิร์ฟเวอร์ใดเซิร์ฟเวอร์หนึ่ง' },
+        basePath: '/logs',
+        tab: 'events',
+      }),
+    );
+  });
+
+  // Raw console output from the bot process.
+  app.get('/logs/console', requireAuth, (req, res) => {
+    const level = ['info', 'warn', 'error'].includes(req.query.level) ? req.query.level : null;
+    res.send(
+      consoleLogsPage({
+        lines: getConsoleLogs({ level, limit: 300 }),
+        level,
+        bot: botInfo(),
+      }),
+    );
+  });
+
+  app.get('/logs/console.json', requireAuth, (req, res) => {
+    const level = ['info', 'warn', 'error'].includes(req.query.level) ? req.query.level : null;
+    res.json({ lines: getConsoleLogs({ level, limit: 300 }) });
+  });
+
+  app.get('/guild/:id/logs', requireAuth, (req, res) => {
+    const guild = client.guilds.cache.get(req.params.id);
+    if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
+    const level = ['info', 'warn', 'error'].includes(req.query.level) ? req.query.level : null;
+    res.send(
+      logsPage({
+        events: getEvents({ guildId: guild.id, level, limit: 300 }),
+        level,
+        bot: botInfo(),
+        scope: { title: `บันทึกของ ${guild.name}`, subtitle: 'ประวัติการเล่นเพลงและการใช้คำสั่ง', backTo: `/guild/${guild.id}` },
+        basePath: `/guild/${guild.id}/logs`,
+      }),
+    );
   });
 
   const port = process.env.PORT || 3000;

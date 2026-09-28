@@ -38,7 +38,36 @@ const ICONS = {
   play: '<svg viewBox="0 0 24 24" fill="none"><path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor"/></svg>',
   skip: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 5.5v13L15 12 6 5.5Z" fill="currentColor"/><rect x="16.5" y="5.5" width="2.8" height="13" rx="1.2" fill="currentColor"/></svg>',
   stop: '<svg viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>',
+  log: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 3.5h9l4 4V20a.5.5 0 0 1-.5.5h-12A.5.5 0 0 1 6 20V4a.5.5 0 0 1 .5-.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14.5 3.7V8h4.3M9 12.5h6M9 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
 };
+
+// Human-readable labels for the event types written by the bot and dashboard.
+const EVENT_LABELS = {
+  now_playing: 'กำลังเล่น',
+  queued: 'เพิ่มเข้าคิว',
+  queue_finished: 'เล่นจบคิว',
+  voice_left: 'ออกจากห้องเสียง',
+  playback_error: 'เล่นเพลงผิดพลาด',
+  command: 'ใช้คำสั่ง',
+  command_blocked: 'คำสั่งถูกปฏิเสธ',
+  command_error: 'คำสั่งผิดพลาด',
+  dashboard_play: 'สั่งเล่นจากเว็บ',
+  dashboard_play_failed: 'สั่งเล่นจากเว็บไม่สำเร็จ',
+  dashboard_control: 'ควบคุมจากเว็บ',
+  settings_saved: 'บันทึกการตั้งค่า',
+  login_ok: 'เข้าสู่ระบบสำเร็จ',
+  login_failed: 'รหัสผ่านผิด',
+  login_locked: 'ถูกล็อกชั่วคราว',
+  bot_started: 'บอทเริ่มทำงาน',
+};
+
+function formatTime(ms) {
+  return new Intl.DateTimeFormat('th-TH', {
+    dateStyle: 'medium',
+    timeStyle: 'medium',
+    timeZone: 'Asia/Bangkok',
+  }).format(new Date(ms));
+}
 
 function fontsAndReset() {
   return `<link rel="preconnect" href="https://fonts.googleapis.com">
@@ -345,6 +374,55 @@ ${fontsAndReset()}
   .toast.ok { display: block; background: var(--success-soft); color: var(--success); }
   .toast.err { display: block; background: var(--danger-soft); color: #ff8789; }
 
+  .filters { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .chip {
+    padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text-muted);
+    text-decoration: none; transition: all .15s ease;
+  }
+  .chip:hover { color: var(--text); border-color: var(--border-strong); }
+  .chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+
+  .log-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .log-table th {
+    text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .5px;
+    color: var(--text-faint); font-weight: 600; padding: 0 12px 10px; white-space: nowrap;
+  }
+  .log-table td { padding: 11px 12px; border-top: 1px solid var(--border); vertical-align: top; }
+  .log-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .log-time { color: var(--text-faint); white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 12.5px; }
+  .log-actor { color: var(--text-muted); white-space: nowrap; }
+  .log-detail { color: var(--text); word-break: break-word; }
+  .lvl {
+    display: inline-block; padding: 3px 9px; border-radius: 6px;
+    font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+  .lvl.info { background: var(--accent-soft); color: #9aa4f8; }
+  .lvl.warn { background: rgba(240,178,50,0.15); color: #f0b232; }
+  .lvl.error { background: var(--danger-soft); color: #ff8789; }
+  .table-scroll { overflow-x: auto; }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .tab {
+    padding: 8px 16px; border-radius: 9px 9px 0 0; font-size: 13.5px; font-weight: 600;
+    color: var(--text-muted); text-decoration: none; border-bottom: 2px solid transparent;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+  .console {
+    background: #0a0b0e; border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px; max-height: 65vh; overflow: auto;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    font-size: 12.5px; line-height: 1.65;
+  }
+  .cline { display: flex; gap: 10px; padding: 2px 0; }
+  .cline .ct { color: var(--text-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .cline .cx { white-space: pre-wrap; word-break: break-word; flex: 1; }
+  .cline.warn .cx { color: #f0b232; }
+  .cline.error .cx { color: #ff8789; }
+  .cline.info .cx { color: #c9ccd4; }
+
   .login-card { max-width: 380px; margin: 12vh auto 0; text-align: center; }
   .login-logo { margin: 0 auto 18px; }
   .login-title { font-size: 20px; font-weight: 800; margin: 0 0 6px; }
@@ -399,6 +477,114 @@ function loginPage({ error, bot } = {}) {
   });
 }
 
+function logTabs(active) {
+  return `<div class="tabs">
+    <a class="tab${active === 'events' ? ' active' : ''}" href="/logs">เหตุการณ์ระบบ</a>
+    <a class="tab${active === 'console' ? ' active' : ''}" href="/logs/console">บันทึกบอท (console)</a>
+  </div>`;
+}
+
+function levelChips(basePath, level) {
+  const chip = (value, label) =>
+    `<a class="chip${level === value ? ' active' : ''}" href="${basePath}${value ? `?level=${value}` : ''}">${label}</a>`;
+  return `<div class="filters">${chip('', 'ทั้งหมด')}${chip('info', 'ปกติ')}${chip('warn', 'คำเตือน')}${chip('error', 'ข้อผิดพลาด')}</div>`;
+}
+
+function consoleLogsPage({ lines, level, bot }) {
+  const rows = lines
+    .map(
+      (l) => `<div class="cline ${l.level}">
+        <span class="ct">${escapeHtml(formatTime(l.at).split(' ').slice(-1)[0])}</span>
+        <span class="cx">${escapeHtml(l.text)}</span>
+      </div>`,
+    )
+    .join('');
+
+  return layout({
+    title: `บันทึกบอท - ${bot?.name || 'Music Bot'}`,
+    body: `
+${headerNav(bot)}
+<main style="max-width:960px;">
+  <h1 class="page-title">บันทึกบอท</h1>
+  <p class="page-sub">ข้อความที่บอทพิมพ์ออกมาขณะทำงาน (ใหม่สุดอยู่บนสุด)</p>
+  ${logTabs('console')}
+  ${levelChips('/logs/console', level)}
+  <div class="card">
+    ${rows ? `<div class="console" id="console-box">${rows}</div>` : '<div class="empty-state">ยังไม่มีข้อความในหมวดนี้</div>'}
+  </div>
+  <p class="muted" style="text-align:center; font-size:12.5px;">
+    เก็บในหน่วยความจำ 500 บรรทัดล่าสุด · รีเซ็ตเมื่อบอทรีสตาร์ท · อัปเดตอัตโนมัติทุก 5 วินาที
+  </p>
+</main>
+<script>
+const LEVEL = ${JSON.stringify(level || '')};
+async function refreshConsole() {
+  try {
+    const res = await fetch('/logs/console.json' + (LEVEL ? '?level=' + LEVEL : ''));
+    const { lines } = await res.json();
+    const box = document.getElementById('console-box');
+    if (!box) return;
+    box.innerHTML = lines.map((l) => {
+      const d = document.createElement('div');
+      d.textContent = l.text;
+      const t = new Date(l.at).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' });
+      return '<div class="cline ' + l.level + '"><span class="ct">' + t + '</span><span class="cx">' + d.innerHTML + '</span></div>';
+    }).join('');
+  } catch (e) {
+    // transient fetch failures are not worth surfacing on a log viewer
+  }
+}
+setInterval(refreshConsole, 5000);
+</script>`,
+  });
+}
+
+function logsPage({ events, level, bot, scope, basePath, tab }) {
+
+  const rows = events
+    .map(
+      (e) => `<tr>
+        <td class="log-time">${escapeHtml(formatTime(e.created_at))}</td>
+        <td><span class="lvl ${e.level}">${escapeHtml(EVENT_LABELS[e.type] || e.type)}</span></td>
+        <td class="log-actor">${escapeHtml(e.actor || '—')}</td>
+        <td class="log-detail">${escapeHtml(e.detail || '')}</td>
+      </tr>`,
+    )
+    .join('');
+
+  return layout({
+    title: `${scope.title} - ${bot?.name || 'Music Bot'}`,
+    body: `
+${headerNav(bot)}
+<main style="max-width:960px;">
+  ${
+    scope.backTo
+      ? `<a href="${scope.backTo}" class="icon-link" style="margin-bottom:12px; padding-left:0;">
+           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+           กลับไปหน้าตั้งค่า
+         </a>`
+      : ''
+  }
+  <h1 class="page-title">${escapeHtml(scope.title)}</h1>
+  <p class="page-sub">${escapeHtml(scope.subtitle)}</p>
+  ${tab ? logTabs(tab) : ''}
+  ${levelChips(basePath, level)}
+
+  <div class="card">
+    ${
+      rows
+        ? `<div class="table-scroll"><table class="log-table">
+             <thead><tr><th>เวลา</th><th>เหตุการณ์</th><th>โดย</th><th>รายละเอียด</th></tr></thead>
+             <tbody>${rows}</tbody>
+           </table></div>`
+        : '<div class="empty-state">ยังไม่มีบันทึกในหมวดนี้</div>'
+    }
+  </div>
+  <p class="muted" style="text-align:center; font-size:12.5px;">แสดงล่าสุดไม่เกิน 300 รายการ · เก็บสะสมสูงสุด 5,000 รายการ</p>
+</main>`,
+  });
+}
+
 function headerNav(bot) {
   const logo = bot?.avatarUrl
     ? `<img src="${escapeHtml(bot.avatarUrl)}" alt="" style="width:32px;height:32px;border-radius:9px;">`
@@ -411,7 +597,10 @@ function headerNav(bot) {
       <div class="brand-sub">Dashboard</div>
     </div>
   </a>
-  <a href="/logout" class="icon-link">${ICONS.logout} ออกจากระบบ</a>
+  <div style="display:flex; gap:4px;">
+    <a href="/logs" class="icon-link">${ICONS.log} บันทึกระบบ</a>
+    <a href="/logout" class="icon-link">${ICONS.logout} ออกจากระบบ</a>
+  </div>
 </header>`;
 }
 
@@ -572,6 +761,17 @@ ${headerNav(bot)}
       ${saved ? '<span class="saved-toast">บันทึกแล้ว</span>' : ''}
     </div>
   </form>
+
+  <a href="/guild/${guild.id}/logs" class="guild-row" style="margin-top:20px;">
+    <div class="section-icon">${ICONS.log}</div>
+    <div class="meta">
+      <div class="g-name">ดูบันทึกของเซิร์ฟเวอร์นี้</div>
+      <div class="g-sub">ประวัติเพลงที่เล่น การใช้คำสั่ง และข้อผิดพลาด</div>
+    </div>
+    <span class="chevron">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="m9 6 6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </span>
+  </a>
 </main>
 <script>
 const GUILD = '${guild.id}';
@@ -680,4 +880,4 @@ setInterval(refreshStatus, 5000);
   });
 }
 
-module.exports = { loginPage, guildListPage, guildSettingsPage };
+module.exports = { loginPage, guildListPage, guildSettingsPage, logsPage, consoleLogsPage };

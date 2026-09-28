@@ -1,10 +1,12 @@
 require('dotenv').config();
+// Installed first so the dashboard's log view captures start-up output too.
+require('./lib/consoleCapture').installConsoleCapture();
 const fs = require('fs');
 const path = require('path');
 const { Client, GatewayIntentBits, Collection, EmbedBuilder } = require('discord.js');
 const { DisTube, isVoiceChannelEmpty } = require('distube');
 const { YtDlpPlugin } = require('./lib/ytDlpPlugin');
-const { getGuildSettings } = require('./db');
+const { getGuildSettings, logEvent } = require('./db');
 const { DJ_ONLY_COMMANDS, canUseDjCommand, isCommandDisabled } = require('./lib/permissions');
 const startDashboard = require('./web/server');
 
@@ -53,6 +55,12 @@ client.distube
     }
   })
   .on('playSong', (queue, song) => {
+    logEvent({
+      guildId: queue.id,
+      type: 'now_playing',
+      actor: song.user?.username || null,
+      detail: `${song.name} (${song.formattedDuration}) · ${queue.voice.channel?.name || '-'}`,
+    });
     queue.textChannel?.send({
       embeds: [
         new EmbedBuilder()
@@ -67,27 +75,38 @@ client.distube
     });
   })
   .on('addSong', (queue, song) => {
+    logEvent({
+      guildId: queue.id,
+      type: 'queued',
+      actor: song.user?.username || null,
+      detail: `${song.name} (${song.formattedDuration})`,
+    });
     queue.textChannel?.send(`เพิ่มเข้าคิวแล้ว: **${song.name}** (${song.formattedDuration})`);
   })
   .on('finish', (queue) => {
+    logEvent({ guildId: queue.id, type: 'queue_finished' });
     queue.textChannel?.send('เล่นครบทุกเพลงในคิวแล้ว');
   })
   .on('disconnect', (queue) => {
+    logEvent({ guildId: queue.id, type: 'voice_left' });
     queue.textChannel?.send('ออกจากห้องเสียงแล้ว');
   })
   .on('error', (e, queue) => {
     console.error(e);
+    logEvent({ guildId: queue?.id, level: 'error', type: 'playback_error', detail: e?.message ?? String(e) });
     queue?.textChannel?.send(`เกิดข้อผิดพลาด: ${e?.message ?? e}`.slice(0, 1900));
   });
 
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
+  logEvent({ type: 'bot_started', detail: `${client.user.tag} · ${client.guilds.cache.size} เซิร์ฟเวอร์` });
   startDashboard(client);
 });
 
 client.on('voiceStateUpdate', (oldState) => {
   const queue = client.distube.getQueue(oldState.guild.id);
   if (queue && isVoiceChannelEmpty(oldState)) {
+    logEvent({ guildId: oldState.guild.id, type: 'voice_left', detail: 'ไม่มีคนอยู่ในห้องเสียง' });
     queue.textChannel?.send('ไม่มีคนอยู่ในห้องเสียงแล้ว บอทออกจากห้อง');
     queue.stop().catch(console.error);
   }
@@ -98,17 +117,48 @@ client.on('interactionCreate', async (interaction) => {
   const command = client.commands.get(interaction.commandName);
   if (!command) return;
 
+  const actor = interaction.user.username;
+  const args = interaction.options.data.map((o) => o.value).join(' ');
+
   if (isCommandDisabled(interaction.guildId, interaction.commandName)) {
+    logEvent({
+      guildId: interaction.guildId,
+      level: 'warn',
+      type: 'command_blocked',
+      actor,
+      detail: `/${interaction.commandName} — คำสั่งถูกปิดใช้งาน`,
+    });
     return interaction.reply({ content: 'คำสั่งนี้ถูกปิดใช้งานในเซิร์ฟเวอร์นี้', ephemeral: true });
   }
   if (DJ_ONLY_COMMANDS.has(interaction.commandName) && !canUseDjCommand(interaction.member)) {
+    logEvent({
+      guildId: interaction.guildId,
+      level: 'warn',
+      type: 'command_blocked',
+      actor,
+      detail: `/${interaction.commandName} — ไม่มีสิทธิ์ (DJ role)`,
+    });
     return interaction.reply({ content: 'คำสั่งนี้ใช้ได้เฉพาะ DJ role หรือแอดมินเท่านั้น', ephemeral: true });
   }
+
+  logEvent({
+    guildId: interaction.guildId,
+    type: 'command',
+    actor,
+    detail: `/${interaction.commandName}${args ? ' ' + args : ''}`,
+  });
 
   try {
     await command.execute(interaction, client.distube);
   } catch (err) {
     console.error(err);
+    logEvent({
+      guildId: interaction.guildId,
+      level: 'error',
+      type: 'command_error',
+      actor,
+      detail: `/${interaction.commandName}: ${err.message}`,
+    });
     const payload = { content: 'คำสั่งทำงานผิดพลาด', ephemeral: true };
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp(payload);
