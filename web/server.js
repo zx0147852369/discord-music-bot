@@ -2,14 +2,11 @@ const crypto = require('crypto');
 const express = require('express');
 const session = require('express-session');
 const { ChannelType, PermissionsBitField } = require('discord.js');
-const { isURL } = require('distube');
 const { getGuildSettings, saveGuildSettings, logEvent, getEvents } = require('../db');
-const { searchOne } = require('../lib/ytDlpPlugin');
+const { resolveSong } = require('../lib/ytDlpPlugin');
 const { getConsoleLogs } = require('../lib/consoleCapture');
 const { loginPage, guildListPage, guildSettingsPage, logsPage, consoleLogsPage } = require('./views');
 
-// Matches the /play command: YouTube is unusable from a datacenter IP unless a proxy is set.
-const searchSource = process.env.YTDLP_PROXY ? 'youtube' : 'soundcloud';
 
 const loginAttempts = new Map(); // ip -> { count, resetAt }
 const MAX_ATTEMPTS = 5;
@@ -209,23 +206,17 @@ function startDashboard(client) {
         (settings.announce_channel_id && guild.channels.cache.get(settings.announce_channel_id)) ||
         guild.channels.cache.find((c) => c.type === ChannelType.GuildText && c.viewable);
 
-      let target = query;
-      let label = query;
-      if (!isURL(query)) {
-        const found = await searchOne(query, { source: searchSource });
-        if (!found) return res.status(404).json({ error: `ไม่พบเพลง: ${query}` });
-        target = found.url;
-        label = found.title;
-      }
+      const song = await resolveSong(client.distube, query, { member: me });
+      if (!song) return res.status(404).json({ error: `ไม่พบเพลง: ${query}` });
 
       logEvent({
         guildId: guild.id,
         type: 'dashboard_play',
         actor: req.ip,
-        detail: `${label} → ${voiceChannel.name}`,
+        detail: `${song.name} → ${voiceChannel.name}`,
       });
-      await client.distube.play(voiceChannel, target, { member: me, textChannel });
-      res.json({ ok: true, title: label });
+      await client.distube.play(voiceChannel, song, { member: me, textChannel });
+      res.json({ ok: true, title: song.name });
     } catch (err) {
       console.error('Dashboard play failed:', err);
       logEvent({

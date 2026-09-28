@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { isURL } = require('distube');
-const { searchOne, youtubeTitle } = require('../lib/ytDlpPlugin');
+const { resolveSong, youtubeTitle } = require('../lib/ytDlpPlugin');
 
 // A URL like ...&list=RDxxxx&start_radio=1 points at YouTube's auto-generated "Radio" mix,
 // which has no fixed end — yt-dlp will hang trying to resolve it as a playlist. Strip the
@@ -24,10 +24,6 @@ function isYouTubeUrl(urlString) {
   }
 }
 
-// YouTube refuses most requests from datacenter IPs, so searches go to SoundCloud unless a
-// proxy is configured to give the bot a clean egress IP.
-const searchSource = process.env.YTDLP_PROXY ? 'youtube' : 'soundcloud';
-
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('play')
@@ -43,40 +39,34 @@ module.exports = {
 
     await interaction.deferReply();
     const query = interaction.options.getString('query', true);
+    const resolveOptions = { member: interaction.member };
     const playOptions = { member: interaction.member, textChannel: interaction.channel };
 
     try {
-      let target;
-      let label;
-
-      if (isURL(query)) {
-        target = stripRadioMix(query);
-        label = query;
-      } else {
-        const found = await searchOne(query, { source: searchSource });
-        if (!found) return interaction.editReply(`ไม่พบเพลงที่ค้นหา: **${query}**`);
-        target = found.url;
-        label = found.title;
-      }
+      const target = isURL(query) ? stripRadioMix(query) : query;
+      let song;
 
       try {
-        await distube.play(voiceChannel, target, playOptions);
+        song = await resolveSong(distube, target, resolveOptions);
       } catch (err) {
         // A YouTube link the bot cannot extract is still identifiable: look the title up and
         // play the same song from SoundCloud instead.
         if (!isYouTubeUrl(target)) throw err;
-        console.error('YouTube playback failed, falling back to SoundCloud:', err.message);
+        console.error('YouTube extraction failed, falling back to SoundCloud:', err.message);
 
         const title = await youtubeTitle(target);
-        const found = await searchOne(title, { source: 'soundcloud' });
-        if (!found) {
+        song = await resolveSong(distube, title, resolveOptions);
+        if (!song) {
           return interaction.editReply(`เล่นจาก YouTube ไม่ได้ และหาเพลง **${title}** ใน SoundCloud ไม่เจอ`);
         }
-        await distube.play(voiceChannel, found.url, playOptions);
-        return interaction.editReply(`YouTube เล่นไม่ได้ เลยเปิดจาก SoundCloud แทน: **${found.title}**`);
+        await distube.play(voiceChannel, song, playOptions);
+        return interaction.editReply(`YouTube เล่นไม่ได้ เลยเปิดจาก SoundCloud แทน: **${song.name}**`);
       }
 
-      await interaction.editReply(`กำลังเพิ่มเข้าคิว: **${label}**`);
+      if (!song) return interaction.editReply(`ไม่พบเพลงที่ค้นหา: **${query}**`);
+
+      await distube.play(voiceChannel, song, playOptions);
+      await interaction.editReply(`กำลังเพิ่มเข้าคิว: **${song.name}**`);
     } catch (err) {
       console.error(err);
       await interaction.editReply('เล่นเพลงไม่สำเร็จ ลองค้นด้วยชื่อเพลงแทนการใช้ลิงก์ดูครับ');
