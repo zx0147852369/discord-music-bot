@@ -2,8 +2,22 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
-const dbPath = process.env.DB_PATH || path.join(__dirname, 'data', 'bot.sqlite');
+// Settings and logs must survive redeploys. A host's mounted volume is the only writable
+// place that does, so use it automatically rather than relying on someone remembering to
+// point DB_PATH at it — writing to the app directory silently loses everything on deploy.
+function resolveDbPath() {
+  if (process.env.DB_PATH) return process.env.DB_PATH;
+  if (process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+    return path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'bot.sqlite');
+  }
+  return path.join(__dirname, 'data', 'bot.sqlite');
+}
+
+const dbPath = resolveDbPath();
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+
+const onVolume = Boolean(process.env.DB_PATH || process.env.RAILWAY_VOLUME_MOUNT_PATH);
+console.log(`Database: ${dbPath}${onVolume ? '' : ' (not on a persistent volume — settings reset on redeploy)'}`);
 
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
