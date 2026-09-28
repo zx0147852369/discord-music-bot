@@ -401,22 +401,57 @@ ${fontsAndReset()}
 
   .empty-state { text-align: center; padding: 30px 10px; color: var(--text-faint); font-size: 13.5px; }
 
-  .np-card { display: flex; align-items: center; gap: 14px; }
-  .eq { display: flex; align-items: flex-end; gap: 3px; width: 22px; height: 18px; flex-shrink: 0; }
-  .eq span { width: 4px; background: var(--accent); border-radius: 2px; animation: eq 0.9s ease-in-out infinite; }
-  .eq span:nth-child(1) { height: 40%; animation-delay: -0.6s; }
-  .eq span:nth-child(2) { height: 100%; animation-delay: -0.2s; }
-  .eq span:nth-child(3) { height: 65%; animation-delay: -0.9s; }
-  @keyframes eq { 0%,100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
-  .np-title { font-weight: 700; font-size: 14.5px; }
-  .np-sub { font-size: 12.5px; color: var(--text-faint); margin-top: 2px; }
-  .np-queue { margin: 14px 0 0; padding: 0; list-style: none; }
-  .np-queue li {
-    padding: 8px 10px; font-size: 13px; color: var(--text-muted);
-    border-top: 1px solid var(--border);
-    display: flex; gap: 8px;
+  /* Now-playing hero: a dark, glowing player panel that stands out against the white cards. */
+  .np-hero {
+    position: relative; overflow: hidden; border-radius: 16px; padding: 20px 20px 0;
+    background:
+      radial-gradient(130% 150% at 10% -10%, rgba(120,140,255,.38), transparent 55%),
+      radial-gradient(120% 130% at 100% 0%, rgba(168,110,255,.28), transparent 50%),
+      linear-gradient(135deg, #14162e 0%, #222a5e 55%, #2c2360 100%);
+    box-shadow: 0 16px 40px -16px rgba(41,52,140,.6), inset 0 1px 0 rgba(255,255,255,.07);
+    color: #fff;
   }
-  .np-queue li .idx { color: var(--text-faint); font-variant-numeric: tabular-nums; }
+  .np-hero.paused { filter: saturate(.65) brightness(.92); }
+  .np-top { display: flex; align-items: flex-start; gap: 16px; position: relative; z-index: 2; }
+  .np-art {
+    width: 58px; height: 58px; border-radius: 50%; flex-shrink: 0; position: relative;
+    display: grid; place-items: center;
+    background: conic-gradient(from 0deg, #5e74ff, #a56bff, #54e0b4, #5e74ff);
+    box-shadow: 0 8px 22px -6px rgba(120,120,255,.75);
+    animation: npspin 7s linear infinite;
+  }
+  .np-hero.paused .np-art { animation-play-state: paused; }
+  .np-art::before { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: #14162e; }
+  .np-art::after { content: ''; position: absolute; width: 9px; height: 9px; border-radius: 50%; background: #aab4ff; z-index: 2; box-shadow: 0 0 12px 2px rgba(150,160,255,.7); }
+  .np-art svg { position: relative; z-index: 2; width: 22px; height: 22px; color: #dfe4ff; }
+  .np-meta { min-width: 0; flex: 1; }
+  .np-live { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; letter-spacing: .7px; color: #a9b8ff; }
+  .np-live .dot { width: 7px; height: 7px; border-radius: 50%; background: #54e08a; animation: nplive 1.6s ease-out infinite; }
+  .np-hero.paused .np-live .dot { background: #f0b429; animation: none; }
+  @keyframes nplive { 0% { box-shadow: 0 0 0 0 rgba(84,224,138,.6); } 100% { box-shadow: 0 0 0 9px rgba(84,224,138,0); } }
+  .np-name {
+    font-size: 16px; font-weight: 800; line-height: 1.35; margin-top: 6px; color: #fff;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .np-info { font-size: 12.5px; color: #aab4e6; margin-top: 6px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .np-info .sep { opacity: .4; }
+  .np-badge {
+    margin-left: auto; flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 5px 11px; border-radius: 999px;
+    background: rgba(240,180,41,.16); color: #ffd479; border: 1px solid rgba(240,180,41,.32); display: none;
+  }
+  .np-hero.paused .np-badge { display: inline-block; }
+  .np-wave-wrap { position: relative; height: 66px; margin: 16px -20px 0; }
+  canvas.np-wave { display: block; width: 100%; height: 100%; }
+
+  .np-queue { margin: 16px 0 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .np-queue .np-queue-head { font-size: 11.5px; font-weight: 700; letter-spacing: .3px; color: var(--text-muted); padding: 10px 14px; background: var(--surface-2); }
+  .np-queue li {
+    padding: 9px 14px; font-size: 13px; color: var(--text-muted);
+    border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: baseline;
+  }
+  .np-queue li .idx { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .np-queue li .qname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @keyframes npspin { to { transform: rotate(360deg); } }
 
   .player-row { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
   .player-row input[type=text] { flex: 1 1 240px; }
@@ -436,6 +471,8 @@ ${fontsAndReset()}
   .tbtn svg { width: 15px; height: 15px; }
   .tbtn.danger { color: var(--danger); border-color: #f3c3bf; }
   .tbtn.danger:hover:not(:disabled) { background: var(--danger-soft); }
+  .tbtn.accent { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 6px 16px -8px rgba(51,82,204,.8); }
+  .tbtn.accent:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
   .toast {
     margin-top: 14px; font-size: 13px; padding: 10px 14px; border-radius: 9px; display: none;
   }
@@ -1055,7 +1092,7 @@ function guildSettingsPage({
     </div>
     <div id="now-playing" style="margin-top:16px;"><div class="empty-state">กำลังโหลดสถานะ...</div></div>
     <div class="transport">
-      <button type="button" class="tbtn" id="btn-playpause" disabled>${ICONS.pause}<span id="playpause-label">หยุดชั่วคราว</span></button>
+      <button type="button" class="tbtn accent" id="btn-playpause" disabled>${ICONS.pause}<span id="playpause-label">หยุดชั่วคราว</span></button>
       <button type="button" class="tbtn" id="btn-skip" disabled>${ICONS.skip}ข้ามเพลง</button>
       <button type="button" class="tbtn danger" id="btn-stop" disabled>${ICONS.stop}หยุดเล่น</button>
     </div>
@@ -1209,6 +1246,70 @@ async function post(path, body) {
   return data;
 }
 
+// A self-contained canvas music visualiser. It doesn't read real audio (the server only sends
+// track metadata) — it renders an organic, symmetric waveform that moves while a song plays
+// and settles almost flat when paused, so the panel feels alive without lying about levels.
+const wave = (() => {
+  let raf = null, canvas = null, ctx = null, W = 0, H = 0, dpr = 1, t = 0, paused = false, amp = 0;
+  const BARS = 60;
+  function resize() {
+    if (!canvas) return;
+    const r = canvas.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.max(1, Math.round(r.width * dpr));
+    H = Math.max(1, Math.round(r.height * dpr));
+    canvas.width = W; canvas.height = H;
+  }
+  function bar(x, y, w, h, r) {
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); }
+    else ctx.fillRect(x, y, w, h);
+  }
+  function draw() {
+    if (!ctx) return;
+    ctx.clearRect(0, 0, W, H);
+    const mid = H / 2, gap = W / BARS, bw = gap * 0.46, target = paused ? 0.08 : 1;
+    amp += (target - amp) * 0.08; // ease between playing/paused so it doesn't snap
+    for (let i = 0; i < BARS; i++) {
+      const env = Math.sin((i / (BARS - 1)) * Math.PI);      // taper the ends, like a real clip
+      const s = Math.sin(i * 0.5 + t * 2.1) * 0.5 + Math.sin(i * 0.17 - t * 1.3) * 0.34 + Math.sin(i * 0.93 + t * 3.9) * 0.16;
+      const h = Math.max(dpr * 1.5, (0.22 + Math.abs(s) * 0.78) * env * amp * (H * 0.46));
+      const x = i * gap + (gap - bw) / 2;
+      const g = ctx.createLinearGradient(0, mid - h, 0, mid + h);
+      g.addColorStop(0, 'rgba(168,120,255,0.95)');
+      g.addColorStop(0.5, 'rgba(110,130,255,0.95)');
+      g.addColorStop(1, 'rgba(84,224,180,0.9)');
+      ctx.fillStyle = g;
+      bar(x, mid - h, bw, h * 2, bw * 0.5);
+    }
+  }
+  function loop() { t += paused ? 0.004 : 0.024; draw(); raf = requestAnimationFrame(loop); }
+  return {
+    mount(el) { canvas = el; ctx = canvas.getContext('2d'); resize(); if (!raf) loop(); },
+    setPaused(p) { paused = p; },
+    resize() { resize(); },
+    stop() { if (raf) cancelAnimationFrame(raf); raf = null; canvas = null; ctx = null; },
+  };
+})();
+window.addEventListener('resize', () => wave.resize());
+
+function heroSkeleton() {
+  return (
+    '<div class="np-hero" id="np-hero">' +
+      '<div class="np-top">' +
+        '<div class="np-art"><svg viewBox="0 0 24 24" fill="none"><path d="M9 18V5l11-2v13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" stroke="currentColor" stroke-width="1.7"/><circle cx="17.5" cy="16" r="2.5" stroke="currentColor" stroke-width="1.7"/></svg></div>' +
+        '<div class="np-meta">' +
+          '<span class="np-live"><span class="dot"></span><span id="np-live-text">กำลังเล่น</span></span>' +
+          '<div class="np-name" id="np-name"></div>' +
+          '<div class="np-info"><span>🔊 <span id="np-info-ch"></span></span><span class="sep">·</span><span>ระดับเสียง <span id="np-info-vol"></span></span></div>' +
+        '</div>' +
+        '<span class="np-badge">หยุดชั่วคราว</span>' +
+      '</div>' +
+      '<div class="np-wave-wrap"><canvas class="np-wave" id="np-wave"></canvas></div>' +
+    '</div>' +
+    '<div id="np-queue-holder"></div>'
+  );
+}
+
 async function refreshStatus() {
   try {
     const res = await fetch('/guild/' + GUILD + '/status.json');
@@ -1222,24 +1323,31 @@ async function refreshStatus() {
     $('playpause-label').textContent = data.paused ? 'เล่นต่อ' : 'หยุดชั่วคราว';
 
     if (!playing) {
-      el.innerHTML = '<div class="empty-state">ตอนนี้ไม่มีเพลงเล่นอยู่</div>';
+      if ($('np-hero')) { wave.stop(); el.innerHTML = '<div class="empty-state">ตอนนี้ไม่มีเพลงเล่นอยู่</div>'; }
+      else if (!el.querySelector('.empty-state')) el.innerHTML = '<div class="empty-state">ตอนนี้ไม่มีเพลงเล่นอยู่</div>';
       return;
     }
     if (data.voiceChannelId) $('voice-channel').value = data.voiceChannelId;
 
+    // Build the player shell once, then update fields in place so the canvas/animation is
+    // never torn down and re-created on each 5s poll.
+    if (!$('np-hero')) {
+      el.innerHTML = heroSkeleton();
+      wave.mount($('np-wave'));
+      requestAnimationFrame(() => wave.resize());
+    }
+    $('np-name').textContent = data.nowPlaying;
+    $('np-info-ch').textContent = data.voiceChannel;
+    $('np-info-vol').textContent = data.volume + '%';
+    $('np-live-text').textContent = data.paused ? 'พักอยู่' : 'กำลังเล่น';
+    $('np-hero').classList.toggle('paused', Boolean(data.paused));
+    wave.setPaused(Boolean(data.paused));
+
     const rest = data.queue.slice(1);
-    const queueHtml = rest.length
-      ? '<ul class="np-queue">' + rest.map((s, i) => '<li><span class="idx">' + (i + 1) + '.</span>' + esc(s) + '</li>').join('') + '</ul>'
+    $('np-queue-holder').innerHTML = rest.length
+      ? '<ul class="np-queue"><li class="np-queue-head">ถัดไปในคิว (' + rest.length + ')</li>' +
+        rest.map((s, i) => '<li><span class="idx">' + (i + 1) + '</span><span class="qname">' + esc(s) + '</span></li>').join('') + '</ul>'
       : '';
-    el.innerHTML =
-      '<div class="np-card">' +
-        '<div class="eq"><span></span><span></span><span></span></div>' +
-        '<div>' +
-          '<div class="np-title">' + esc(data.nowPlaying) + (data.paused ? ' (หยุดชั่วคราว)' : '') + '</div>' +
-          '<div class="np-sub">🔊 ' + esc(data.voiceChannel) + ' · ระดับเสียง ' + data.volume + '%</div>' +
-        '</div>' +
-      '</div>' +
-      queueHtml;
   } catch (e) {
     // dashboard status polling failure is non-critical; keep last known state
   }
