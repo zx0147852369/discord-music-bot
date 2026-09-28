@@ -229,6 +229,7 @@ function saveGuildSettings(guildId, settings) {
 }
 
 module.exports = {
+  dbPath,
   getGuildSettings,
   saveGuildSettings,
   logEvent,

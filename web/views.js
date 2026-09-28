@@ -38,6 +38,7 @@ const ICONS = {
   play: '<svg viewBox="0 0 24 24" fill="none"><path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor"/></svg>',
   skip: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 5.5v13L15 12 6 5.5Z" fill="currentColor"/><rect x="16.5" y="5.5" width="2.8" height="13" rx="1.2" fill="currentColor"/></svg>',
   stop: '<svg viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>',
+  server: '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="7" rx="2" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="13" width="18" height="7" rx="2" stroke="currentColor" stroke-width="1.6"/><circle cx="7" cy="7.5" r="1.1" fill="currentColor"/><circle cx="7" cy="16.5" r="1.1" fill="currentColor"/></svg>',
   log: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 3.5h9l4 4V20a.5.5 0 0 1-.5.5h-12A.5.5 0 0 1 6 20V4a.5.5 0 0 1 .5-.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14.5 3.7V8h4.3M9 12.5h6M9 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
 };
 
@@ -457,6 +458,26 @@ ${fontsAndReset()}
   }
   .stat-num { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
   .stat-label { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+  .stat-sub { font-size: 11.5px; color: var(--text-faint); margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+  .meter {
+    height: 8px; border-radius: 999px; background: var(--surface-2);
+    overflow: hidden; margin-top: 10px;
+  }
+  .meter-fill { display: block; height: 100%; border-radius: 999px; background: var(--accent); transition: width .4s ease; }
+  .meter-fill.warn { background: var(--warning); }
+  .meter-fill.crit { background: var(--danger); }
+  .meter-row { padding: 16px 0; border-top: 1px solid var(--border); }
+  .meter-row:first-of-type { border-top: none; }
+  .meter-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .meter-name { font-size: 13.5px; font-weight: 600; }
+  .meter-value { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .meter-note { font-size: 12px; color: var(--text-faint); margin-top: 4px; }
+
+  .kv { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 4px 16px; font-size: 13.5px; margin-top: 16px; }
+  .kv dt { color: var(--text-muted); padding: 7px 0; }
+  .kv dd { margin: 0; padding: 7px 0; word-break: break-word; font-variant-numeric: tabular-nums; }
+  @media (max-width: 560px) { .kv { grid-template-columns: minmax(0, 1fr); } .kv dt { padding-bottom: 0; } }
 
   .top-list { margin-top: 14px; }
   .top-row {
@@ -789,6 +810,7 @@ function sidebar({ bot, active, guild }) {
     <div class="nav-group">ระบบ</div>
     ${item('logs', '/logs', ICONS.log, 'บันทึกระบบ')}
     ${item('console', '/logs/console', ICONS.search, 'บันทึกบอท')}
+    ${item('system', '/system', ICONS.server, 'ทรัพยากรเครื่อง')}
   </nav>
 
   <a href="/logout" class="nav-item nav-foot">${ICONS.logout}<span>ออกจากระบบ</span></a>
@@ -1113,4 +1135,202 @@ setInterval(refreshStatus, 5000);
   });
 }
 
-module.exports = { loginPage, guildListPage, guildSettingsPage, logsPage, consoleLogsPage, historyPage };
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) return '—';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${unit === 0 || value >= 100 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+}
+
+function formatUptime(seconds) {
+  const total = Math.max(0, Math.floor(seconds || 0));
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  if (days) return `${days} วัน ${hours} ชม.`;
+  if (hours) return `${hours} ชม. ${minutes} นาที`;
+  if (minutes) return `${minutes} นาที`;
+  return `${total} วินาที`;
+}
+
+/**
+ * Every live number on the resource page, keyed by the element that shows it.
+ *
+ * The page renders from this and the refresh endpoint returns it, so each reading is
+ * formatted in exactly one place and the browser only has to copy strings into the DOM.
+ */
+function systemFields(stats) {
+  const { cpu, memory, disk, storage, uptime, bot } = stats;
+  const allowance = stats.host.cpuAllowance;
+
+  return {
+    'cpu-bot': {
+      text: `${cpu.botPercent.toFixed(1)}%`,
+      percent: cpu.botPercent,
+      sub: `${cpu.botCorePercent.toFixed(0)}% ของ 1 คอร์ · โควตา ${allowance ? allowance.toFixed(1) : stats.host.cores} คอร์`,
+    },
+    'cpu-sys': {
+      text: `${cpu.systemPercent.toFixed(1)}%`,
+      percent: cpu.systemPercent,
+      sub: cpu.loadAvg == null ? `${stats.host.cores} คอร์` : `load avg ${cpu.loadAvg.toFixed(2)} · ${stats.host.cores} คอร์`,
+    },
+    mem: {
+      text: `${memory.percent.toFixed(1)}%`,
+      percent: memory.percent,
+      sub: `${formatBytes(memory.used)} / ${formatBytes(memory.total)}`,
+    },
+    'mem-bot': {
+      text: formatBytes(memory.rss),
+      percent: memory.total ? (memory.rss / memory.total) * 100 : 0,
+      sub: `heap ${formatBytes(memory.heapUsed)} จาก ${formatBytes(memory.heapTotal)}`,
+    },
+    disk: disk
+      ? {
+          text: `${disk.percent.toFixed(1)}%`,
+          percent: disk.percent,
+          sub: `${formatBytes(disk.used)} / ${formatBytes(disk.total)} · เหลือ ${formatBytes(disk.free)}`,
+        }
+      : { text: '—', percent: 0, sub: 'อ่านค่าพื้นที่ดิสก์ไม่ได้' },
+    uptime: { text: formatUptime(uptime.process), sub: `เครื่องเปิดมา ${formatUptime(uptime.system)}` },
+    'db-size': {
+      text: formatBytes(storage.dbBytes),
+      sub: storage.persistent ? 'เก็บบน Volume ถาวร' : 'ยังไม่ได้อยู่บน Volume — ข้อมูลหายเมื่อ deploy ใหม่',
+    },
+    'bot-guilds': { text: String(bot?.guilds ?? '—'), sub: 'เซิร์ฟเวอร์ที่บอทอยู่' },
+    'bot-playing': { text: String(bot?.playing ?? '—'), sub: 'ห้องที่กำลังเล่นเพลง' },
+    'bot-voice': { text: String(bot?.voice ?? '—'), sub: 'การเชื่อมต่อห้องเสียง' },
+    'bot-ping': { text: bot?.ping == null ? '—' : `${bot.ping} ms`, sub: 'ความหน่วงถึง Discord' },
+  };
+}
+
+function systemPage({ stats, bot, guild }) {
+  const fields = systemFields(stats);
+  const tone = (percent) => (percent >= 90 ? ' crit' : percent >= 75 ? ' warn' : '');
+
+  const statCard = (id, label) => `<div class="stat">
+      <div class="stat-num" data-f="${id}">${escapeHtml(fields[id].text)}</div>
+      <div class="stat-label">${escapeHtml(label)}</div>
+      <div class="stat-sub" data-s="${id}">${escapeHtml(fields[id].sub || '')}</div>
+    </div>`;
+
+  const meterRow = (id, name) => {
+    const f = fields[id];
+    const width = Math.min(100, Math.max(0, f.percent || 0)).toFixed(1);
+    return `<div class="meter-row">
+      <div class="meter-head">
+        <span class="meter-name">${escapeHtml(name)}</span>
+        <span class="meter-value" data-f="${id}">${escapeHtml(f.text)}</span>
+      </div>
+      <div class="meter"><span class="meter-fill${tone(f.percent)}" data-m="${id}" style="width:${width}%"></span></div>
+      <div class="meter-note" data-s="${id}">${escapeHtml(f.sub || '')}</div>
+    </div>`;
+  };
+
+  const host = stats.host;
+  const rows = [
+    ['ชื่อเครื่อง', host.hostname],
+    ['ระบบปฏิบัติการ', `${host.os} (${host.arch})`],
+    ['ซีพียู', `${host.cpuModel} · ${host.cores} คอร์`],
+    ['โควตาซีพียู', host.cpuAllowance ? `${host.cpuAllowance.toFixed(2)} คอร์` : 'ไม่จำกัด (ใช้ได้ทั้งเครื่อง)'],
+    ['แรมที่ใช้ได้', `${formatBytes(stats.memory.total)} (${host.containerised ? 'โควตาของคอนเทนเนอร์' : 'ทั้งเครื่อง'})`],
+    ['Node.js', host.node],
+    ['บริการ', host.service || '—'],
+    ['สภาพแวดล้อม', host.environment || '—'],
+    ['โซนที่รัน', host.region || '—'],
+    ['คอมมิตที่ deploy', host.commit || '—'],
+    ['ไฟล์ฐานข้อมูล', stats.storage.dbPath],
+  ]
+    .map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(String(v))}</dd>`)
+    .join('');
+
+  return layout({
+    title: `ทรัพยากรเครื่อง - ${bot?.name || 'Music Bot'}`,
+    nav: { bot, active: 'system', guild },
+    body: `
+<main style="max-width:960px;">
+  <h1 class="page-title">ทรัพยากรเครื่อง</h1>
+  <p class="page-sub">เครื่องที่บอทรันอยู่ตอนนี้ใช้ CPU แรม และพื้นที่ดิสก์ไปเท่าไหร่ · อัปเดตอัตโนมัติทุก 5 วินาที</p>
+
+  <div class="stat-grid">
+    ${statCard('cpu-bot', 'CPU ที่บอทใช้')}
+    ${statCard('mem', 'แรมที่ใช้')}
+    ${statCard('disk', 'ดิสก์ที่ใช้')}
+    ${statCard('uptime', 'บอททำงานต่อเนื่อง')}
+  </div>
+
+  <div class="card">
+    <div class="section-head">
+      <span class="section-icon">${ICONS.server}</span>
+      <h2 class="section-title">การใช้ทรัพยากร</h2>
+    </div>
+    <p class="section-desc">แถบจะเป็นสีส้มเมื่อเกิน 75% และสีแดงเมื่อเกิน 90%</p>
+    ${meterRow('cpu-bot', 'CPU ของบอท')}
+    ${meterRow('cpu-sys', 'CPU ของทั้งเครื่อง')}
+    ${meterRow('mem', 'แรมของทั้งเครื่อง')}
+    ${meterRow('mem-bot', 'แรมที่โปรเซสบอทใช้')}
+    ${meterRow('disk', 'พื้นที่ดิสก์')}
+  </div>
+
+  <div class="card">
+    <div class="section-head">
+      <span class="section-icon">${ICONS.people}</span>
+      <h2 class="section-title">งานที่บอทแบกอยู่</h2>
+    </div>
+    <p class="section-desc">ยิ่งเล่นพร้อมกันหลายห้อง ยิ่งใช้ CPU และแรมมากขึ้น</p>
+    <div class="stat-grid" style="margin: 18px 0 0;">
+      ${statCard('bot-guilds', 'เซิร์ฟเวอร์')}
+      ${statCard('bot-playing', 'กำลังเล่น')}
+      ${statCard('bot-voice', 'ห้องเสียง')}
+      ${statCard('bot-ping', 'Ping')}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-head">
+      <span class="section-icon">${ICONS.log}</span>
+      <h2 class="section-title">ข้อมูลเครื่องและฐานข้อมูล</h2>
+    </div>
+    <p class="section-desc">ขนาดฐานข้อมูลตอนนี้ <b data-f="db-size">${escapeHtml(fields['db-size'].text)}</b> — <span data-s="db-size">${escapeHtml(fields['db-size'].sub)}</span></p>
+    <dl class="kv">${rows}</dl>
+  </div>
+</main>
+<script>
+function toneClass(p) { return p >= 90 ? ' crit' : p >= 75 ? ' warn' : ''; }
+async function refreshSystem() {
+  try {
+    const res = await fetch('/system.json');
+    const { fields } = await res.json();
+    for (const [id, f] of Object.entries(fields)) {
+      document.querySelectorAll('[data-f="' + id + '"]').forEach((el) => { el.textContent = f.text; });
+      document.querySelectorAll('[data-s="' + id + '"]').forEach((el) => { el.textContent = f.sub || ''; });
+      document.querySelectorAll('[data-m="' + id + '"]').forEach((el) => {
+        const p = Math.min(100, Math.max(0, f.percent || 0));
+        el.style.width = p.toFixed(1) + '%';
+        el.className = 'meter-fill' + toneClass(p);
+      });
+    }
+  } catch (e) {
+    // a dropped poll just leaves the previous numbers on screen until the next tick
+  }
+}
+setInterval(refreshSystem, 5000);
+</script>`,
+  });
+}
+
+module.exports = {
+  loginPage,
+  guildListPage,
+  guildSettingsPage,
+  logsPage,
+  consoleLogsPage,
+  historyPage,
+  systemPage,
+  systemFields,
+};

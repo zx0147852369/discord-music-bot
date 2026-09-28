@@ -13,7 +13,17 @@ const {
 } = require('../db');
 const { resolveSong } = require('../lib/ytDlpPlugin');
 const { getConsoleLogs } = require('../lib/consoleCapture');
-const { loginPage, guildListPage, guildSettingsPage, logsPage, consoleLogsPage, historyPage } = require('./views');
+const {
+  loginPage,
+  guildListPage,
+  guildSettingsPage,
+  logsPage,
+  consoleLogsPage,
+  historyPage,
+  systemPage,
+  systemFields,
+} = require('./views');
+const { snapshot } = require('../lib/systemStats');
 
 
 const loginAttempts = new Map(); // ip -> { count, resetAt }
@@ -340,6 +350,30 @@ function startDashboard(client) {
   app.get('/logs/console.json', requireAuth, (req, res) => {
     const level = ['info', 'warn', 'error'].includes(req.query.level) ? req.query.level : null;
     res.json({ lines: getConsoleLogs({ level, limit: 300 }) });
+  });
+
+  /**
+   * Machine readings plus what the bot is currently doing, since the two only mean
+   * something together: idle CPU with ten rooms playing reads very differently from idle
+   * CPU with none.
+   */
+  function resourceSnapshot() {
+    const stats = snapshot();
+    stats.bot = {
+      guilds: client.guilds.cache.size,
+      playing: [...client.guilds.cache.keys()].filter((id) => client.distube.getQueue(id)).length,
+      voice: client.distube.voices.size,
+      ping: Number.isFinite(client.ws.ping) ? Math.max(0, Math.round(client.ws.ping)) : null,
+    };
+    return stats;
+  }
+
+  app.get('/system', requireAuth, (req, res) => {
+    res.send(systemPage({ stats: resourceSnapshot(), bot: botInfo(), guild: menuGuild(req) }));
+  });
+
+  app.get('/system.json', requireAuth, (req, res) => {
+    res.json({ fields: systemFields(resourceSnapshot()) });
   });
 
   app.get('/guild/:id/history', requireAuth, (req, res) => {
