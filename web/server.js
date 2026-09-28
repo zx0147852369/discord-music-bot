@@ -143,6 +143,7 @@ function startDashboard(client) {
         allCommands: [...client.commands.keys()],
         saved: req.query.saved === '1',
         bot: botInfo(),
+        recentHistory: getSongHistory(guild.id, 12),
       }),
     );
   });
@@ -346,8 +347,9 @@ function startDashboard(client) {
         events: getEvents({ guildId: guild.id, level, limit: 300 }),
         level,
         bot: botInfo(),
-        scope: { title: `บันทึกของ ${guild.name}`, subtitle: 'ประวัติการเล่นเพลงและการใช้คำสั่ง', backTo: `/guild/${guild.id}` },
+        scope: { title: `บันทึกของ ${guild.name}`, subtitle: 'ประวัติการเล่นเพลงและการใช้คำสั่ง' },
         basePath: `/guild/${guild.id}/logs`,
+        guild: { id: guild.id, name: guild.name },
       }),
     );
   });

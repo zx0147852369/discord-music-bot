@@ -76,7 +76,9 @@ function fontsAndReset() {
 <link rel="icon" href="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="24" fill="%235865F2"/><text x="50" y="66" font-size="52" text-anchor="middle" fill="white" font-family="sans-serif">♪</text></svg>')}">`;
 }
 
-function layout({ title, body, bare }) {
+function layout({ title, body, nav }) {
+  // The login screen is the only page without the app shell.
+  const sidebarHtml = nav ? sidebar(nav) : '';
   return `<!DOCTYPE html>
 <html lang="th">
 <head>
@@ -121,18 +123,36 @@ ${fontsAndReset()}
   a { color: inherit; }
   ::selection { background: var(--accent-soft); }
 
-  header.topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 28px;
-    border-bottom: 1px solid var(--border);
+  /* App shell: fixed menu on the left, content beside it. */
+  .shell { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 250px; flex-shrink: 0;
     background: var(--surface);
-    position: sticky;
-    top: 0;
-    z-index: 10;
+    border-right: 1px solid var(--border);
+    padding: 20px 14px;
+    display: flex; flex-direction: column; gap: 6px;
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
   }
-  .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+  .nav { display: flex; flex-direction: column; gap: 2px; margin-top: 18px; }
+  .nav-group {
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--text-faint); padding: 16px 10px 6px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px; border-radius: 8px;
+    color: var(--text-muted); text-decoration: none;
+    font-size: 14px; font-weight: 500;
+    transition: background .15s ease, color .15s ease;
+  }
+  .nav-item svg { width: 17px; height: 17px; flex-shrink: 0; }
+  .nav-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-item:hover { background: var(--surface-2); color: var(--text); }
+  .nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .nav-foot { margin-top: auto; }
+
+  .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; padding: 4px 6px; }
   .brand-name { font-weight: 700; font-size: 15px; letter-spacing: .1px; }
   .brand-sub { font-size: 12px; color: var(--text-faint); font-weight: 500; }
   .icon-link {
@@ -143,8 +163,31 @@ ${fontsAndReset()}
   .icon-link:hover { color: var(--text); background: var(--surface-2); }
   .icon-link svg { width: 16px; height: 16px; }
 
-  main { max-width: 760px; margin: 0 auto; padding: 36px 20px 64px; }
+  .content { flex: 1; min-width: 0; padding: 34px 32px 64px; }
+  main { max-width: 760px; margin: 0 auto; }
   main.narrow { max-width: 420px; }
+
+  /* Settings beside a history rail: the rail drops under the settings on narrow screens. */
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; align-items: start; max-width: 1180px; margin: 0 auto; }
+  .split > main { max-width: none; margin: 0; }
+  .rail { position: sticky; top: 34px; display: flex; flex-direction: column; gap: 16px; }
+  .rail .card { margin-bottom: 0; padding: 20px; }
+  .rail-list { display: flex; flex-direction: column; margin-top: 12px; }
+  .rail-item {
+    display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: baseline;
+    padding: 9px 0; border-top: 1px solid var(--border);
+  }
+  .rail-item:first-child { border-top: none; padding-top: 4px; }
+  .rail-title {
+    font-size: 13.5px; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .rail-title a { color: var(--text); text-decoration: none; }
+  .rail-title a:hover { color: var(--accent); text-decoration: underline; }
+  .rail-meta { font-size: 11.5px; color: var(--text-faint); white-space: nowrap; }
+  .rail-foot { margin-top: 14px; font-size: 13px; }
+  .rail-foot a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .rail-foot a:hover { text-decoration: underline; }
 
   .page-title { font-size: 22px; font-weight: 800; margin: 0 0 4px; letter-spacing: -.2px; }
   .page-sub { color: var(--text-muted); font-size: 14px; margin: 0 0 28px; }
@@ -466,16 +509,38 @@ ${fontsAndReset()}
   }
   button.primary.full { width: 100%; }
 
+  @media (max-width: 1100px) {
+    .split { grid-template-columns: minmax(0, 1fr); }
+    .rail { position: static; }
+  }
+  @media (max-width: 820px) {
+    .shell { flex-direction: column; }
+    .sidebar {
+      width: auto; height: auto; position: static;
+      border-right: none; border-bottom: 1px solid var(--border);
+      flex-direction: row; align-items: center; flex-wrap: wrap; gap: 4px;
+      padding: 12px 16px;
+    }
+    .nav { flex-direction: row; flex-wrap: wrap; margin-top: 0; margin-left: auto; }
+    .nav-group { display: none; }
+    .nav-foot { margin-top: 0; }
+    .content { padding: 24px 16px 48px; }
+  }
   @media (max-width: 560px) {
-    main { padding: 24px 14px 48px; }
     .card { padding: 18px; }
-    header.topbar { padding: 12px 16px; }
     .command-grid { grid-template-columns: 1fr 1fr; }
+    .nav-item span { display: none; }
+    .nav-item { padding: 9px; }
   }
 </style>
 </head>
 <body>
+<div class="shell">
+${sidebarHtml}
+<div class="content">
 ${body}
+</div>
+</div>
 </body>
 </html>`;
 }
@@ -542,13 +607,9 @@ function historyPage({ guild, history, top, stats, autoplay, bot }) {
 
   return layout({
     title: `ประวัติเพลง ${guild.name} - ${bot?.name || 'Music Bot'}`,
+    nav: { bot, active: 'history', guild },
     body: `
-${headerNav(bot)}
 <main style="max-width:960px;">
-  <a href="/guild/${guild.id}" class="icon-link" style="margin-bottom:12px; padding-left:0;">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    กลับไปหน้าตั้งค่า
-  </a>
   <h1 class="page-title">ประวัติเพลงของ ${escapeHtml(guild.name)}</h1>
   <p class="page-sub">
     บอทใช้ประวัตินี้เลือกเพลงแนวเดียวกันมาเล่นต่อเมื่อคิวหมด
@@ -619,8 +680,8 @@ function consoleLogsPage({ lines, level, bot }) {
 
   return layout({
     title: `บันทึกบอท - ${bot?.name || 'Music Bot'}`,
+    nav: { bot, active: 'console' },
     body: `
-${headerNav(bot)}
 <main style="max-width:960px;">
   <h1 class="page-title">บันทึกบอท</h1>
   <p class="page-sub">ข้อความที่บอทพิมพ์ออกมาขณะทำงาน (ใหม่สุดอยู่บนสุด)</p>
@@ -656,7 +717,7 @@ setInterval(refreshConsole, 5000);
   });
 }
 
-function logsPage({ events, level, bot, scope, basePath, tab }) {
+function logsPage({ events, level, bot, scope, basePath, tab, guild }) {
 
   const rows = events
     .map(
@@ -671,17 +732,9 @@ function logsPage({ events, level, bot, scope, basePath, tab }) {
 
   return layout({
     title: `${scope.title} - ${bot?.name || 'Music Bot'}`,
+    nav: { bot, active: guild ? 'guildlogs' : 'logs', guild },
     body: `
-${headerNav(bot)}
 <main style="max-width:960px;">
-  ${
-    scope.backTo
-      ? `<a href="${scope.backTo}" class="icon-link" style="margin-bottom:12px; padding-left:0;">
-           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-           กลับไปหน้าตั้งค่า
-         </a>`
-      : ''
-  }
   <h1 class="page-title">${escapeHtml(scope.title)}</h1>
   <p class="page-sub">${escapeHtml(scope.subtitle)}</p>
   ${tab ? logTabs(tab) : ''}
@@ -702,11 +755,19 @@ ${headerNav(bot)}
   });
 }
 
-function headerNav(bot) {
+/**
+ * Left navigation shared by every page. Server-specific entries only appear once a server
+ * is selected, so the menu never offers links that would 404.
+ */
+function sidebar({ bot, active, guild }) {
   const logo = bot?.avatarUrl
-    ? `<img src="${escapeHtml(bot.avatarUrl)}" alt="" style="width:32px;height:32px;border-radius:9px;">`
-    : `<div class="avatar-fallback" style="width:32px;height:32px;border-radius:9px;font-size:12px;">${escapeHtml(initials(bot?.name || 'DJ'))}</div>`;
-  return `<header class="topbar">
+    ? `<img src="${escapeHtml(bot.avatarUrl)}" alt="" style="width:34px;height:34px;border-radius:9px;">`
+    : `<div class="avatar-fallback" style="width:34px;height:34px;border-radius:9px;font-size:13px;">${escapeHtml(initials(bot?.name || 'DJ'))}</div>`;
+
+  const item = (key, href, icon, label) =>
+    `<a href="${href}" class="nav-item${active === key ? ' active' : ''}">${icon}<span>${label}</span></a>`;
+
+  return `<aside class="sidebar">
   <a href="/" class="brand">
     ${logo}
     <div>
@@ -714,11 +775,24 @@ function headerNav(bot) {
       <div class="brand-sub">Dashboard</div>
     </div>
   </a>
-  <div style="display:flex; gap:4px;">
-    <a href="/logs" class="icon-link">${ICONS.log} บันทึกระบบ</a>
-    <a href="/logout" class="icon-link">${ICONS.logout} ออกจากระบบ</a>
-  </div>
-</header>`;
+
+  <nav class="nav">
+    ${item('servers', '/', ICONS.people, 'เซิร์ฟเวอร์ทั้งหมด')}
+    ${
+      guild
+        ? `<div class="nav-group">${escapeHtml(guild.name)}</div>
+           ${item('settings', `/guild/${guild.id}`, ICONS.toggle, 'ตั้งค่าบอท')}
+           ${item('history', `/guild/${guild.id}/history`, ICONS.note, 'ประวัติการเล่นเพลง')}
+           ${item('guildlogs', `/guild/${guild.id}/logs`, ICONS.log, 'บันทึกของเซิร์ฟเวอร์')}`
+        : ''
+    }
+    <div class="nav-group">ระบบ</div>
+    ${item('logs', '/logs', ICONS.log, 'บันทึกระบบ')}
+    ${item('console', '/logs/console', ICONS.search, 'บันทึกบอท')}
+  </nav>
+
+  <a href="/logout" class="nav-item nav-foot">${ICONS.logout}<span>ออกจากระบบ</span></a>
+</aside>`;
 }
 
 function guildListPage({ guilds, bot }) {
@@ -738,8 +812,8 @@ function guildListPage({ guilds, bot }) {
     .join('');
   return layout({
     title: 'เลือกเซิร์ฟเวอร์ - ' + (bot?.name || 'Music Bot'),
+    nav: { bot, active: 'servers' },
     body: `
-${headerNav(bot)}
 <main>
   <h1 class="page-title">เซิร์ฟเวอร์ของคุณ</h1>
   <p class="page-sub">เลือกเซิร์ฟเวอร์ที่ต้องการตั้งค่าบอท</p>
@@ -763,7 +837,31 @@ function commandCheckboxes(allCommands, disabled) {
     .join('');
 }
 
-function guildSettingsPage({ guild, settings, textChannels, roles, voiceChannels, allCommands, saved, bot }) {
+function historyRail(guild, recent) {
+  const items = recent
+    .map(
+      (h) => `<div class="rail-item">
+        <span class="rail-title">${
+          h.url ? `<a href="${escapeHtml(h.url)}" target="_blank" rel="noopener">${escapeHtml(h.title)}</a>` : escapeHtml(h.title)
+        }</span>
+        <span class="rail-meta">${h.auto ? 'อัตโนมัติ' : escapeHtml(h.requested_by || '—')}</span>
+      </div>`,
+    )
+    .join('');
+
+  return `<aside class="rail">
+  <div class="card">
+    <div class="section-head">
+      <div class="section-icon">${ICONS.note}</div>
+      <h2 class="section-title">ประวัติการเล่นเพลง</h2>
+    </div>
+    ${items ? `<div class="rail-list">${items}</div>` : '<div class="empty-state">ยังไม่มีเพลงที่เคยเล่น</div>'}
+    <div class="rail-foot"><a href="/guild/${guild.id}/history">ดูประวัติทั้งหมด →</a></div>
+  </div>
+</aside>`;
+}
+
+function guildSettingsPage({ guild, settings, textChannels, roles, voiceChannels, allCommands, saved, bot, recentHistory = [] }) {
   const channelOptions = [`<option value="">(ห้องที่พิมพ์คำสั่ง /play)</option>`]
     .concat(
       textChannels.map(
@@ -778,13 +876,10 @@ function guildSettingsPage({ guild, settings, textChannels, roles, voiceChannels
 
   return layout({
     title: `${guild.name} - ${bot?.name || 'Music Bot'}`,
+    nav: { bot, active: 'settings', guild },
     body: `
-${headerNav(bot)}
+<div class="split">
 <main>
-  <a href="/" class="icon-link" style="margin-bottom:12px; padding-left:0;">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    เซิร์ฟเวอร์ทั้งหมด
-  </a>
   <div style="display:flex; align-items:center; gap:14px; margin-bottom:24px;">
     ${avatar(guild.name, guild.iconUrl, 48)}
     <div>
@@ -908,29 +1003,9 @@ ${headerNav(bot)}
       ${saved ? '<span class="saved-toast">บันทึกแล้ว</span>' : ''}
     </div>
   </form>
-
-  <a href="/guild/${guild.id}/history" class="guild-row" style="margin-top:20px;">
-    <div class="section-icon">${ICONS.note}</div>
-    <div class="meta">
-      <div class="g-name">ประวัติเพลง</div>
-      <div class="g-sub">เพลงที่เคยเล่น เพลงยอดนิยม และสถิติของเซิร์ฟเวอร์นี้</div>
-    </div>
-    <span class="chevron">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="m9 6 6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </span>
-  </a>
-
-  <a href="/guild/${guild.id}/logs" class="guild-row" style="margin-top:10px;">
-    <div class="section-icon">${ICONS.log}</div>
-    <div class="meta">
-      <div class="g-name">บันทึกการทำงาน</div>
-      <div class="g-sub">การใช้คำสั่ง การตั้งค่า และข้อผิดพลาด</div>
-    </div>
-    <span class="chevron">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="m9 6 6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </span>
-  </a>
 </main>
+${historyRail(guild, recentHistory)}
+</div>
 <script>
 const GUILD = '${guild.id}';
 const $ = (id) => document.getElementById(id);
