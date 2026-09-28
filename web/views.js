@@ -33,6 +33,11 @@ const ICONS = {
   note: '<svg viewBox="0 0 24 24" fill="none"><path d="M9 18V5l11-2v13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" stroke="currentColor" stroke-width="1.6"/><circle cx="17.5" cy="16" r="2.5" stroke="currentColor" stroke-width="1.6"/></svg>',
   logout: '<svg viewBox="0 0 24 24" fill="none"><path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   people: '<svg viewBox="0 0 24 24" fill="none"><path d="M17 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 5 18.5V20M11 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19 20v-1.5a3 3 0 0 0-2-2.83M15.5 4.2a3 3 0 0 1 0 5.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.7"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="none"><rect x="7" y="5" width="3.4" height="14" rx="1.2" fill="currentColor"/><rect x="13.6" y="5" width="3.4" height="14" rx="1.2" fill="currentColor"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="none"><path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor"/></svg>',
+  skip: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 5.5v13L15 12 6 5.5Z" fill="currentColor"/><rect x="16.5" y="5.5" width="2.8" height="13" rx="1.2" fill="currentColor"/></svg>',
+  stop: '<svg viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>',
 };
 
 function fontsAndReset() {
@@ -316,6 +321,30 @@ ${fontsAndReset()}
   }
   .np-queue li .idx { color: var(--text-faint); font-variant-numeric: tabular-nums; }
 
+  .player-row { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .player-row input[type=text] { flex: 1 1 240px; }
+  .player-row select { flex: 0 1 200px; }
+  .player-row button { margin-top: 0; flex-shrink: 0; }
+  .transport { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; align-items: center; }
+  .tbtn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    background: var(--surface-2); color: var(--text);
+    border: 1px solid var(--border-strong); border-radius: 10px;
+    padding: 9px 14px; font-size: 13.5px; font-weight: 600; font-family: inherit;
+    cursor: pointer; margin-top: 0; box-shadow: none;
+    transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+  }
+  .tbtn:hover:not(:disabled) { background: var(--surface-hover); }
+  .tbtn:disabled { opacity: .4; cursor: not-allowed; }
+  .tbtn svg { width: 15px; height: 15px; }
+  .tbtn.danger { color: #ff8789; border-color: rgba(242,63,66,0.35); }
+  .tbtn.danger:hover:not(:disabled) { background: var(--danger-soft); }
+  .toast {
+    margin-top: 14px; font-size: 13px; padding: 10px 14px; border-radius: 9px; display: none;
+  }
+  .toast.ok { display: block; background: var(--success-soft); color: var(--success); }
+  .toast.err { display: block; background: var(--danger-soft); color: #ff8789; }
+
   .login-card { max-width: 380px; margin: 12vh auto 0; text-align: center; }
   .login-logo { margin: 0 auto 18px; }
   .login-title { font-size: 20px; font-weight: 800; margin: 0 0 6px; }
@@ -428,7 +457,7 @@ function commandCheckboxes(allCommands, disabled) {
     .join('');
 }
 
-function guildSettingsPage({ guild, settings, textChannels, roles, allCommands, saved, bot }) {
+function guildSettingsPage({ guild, settings, textChannels, roles, voiceChannels, allCommands, saved, bot }) {
   const channelOptions = [`<option value="">(ห้องที่พิมพ์คำสั่ง /play)</option>`]
     .concat(
       textChannels.map(
@@ -464,6 +493,31 @@ ${headerNav(bot)}
       <h2 class="section-title">สถานะตอนนี้</h2>
     </div>
     <div id="now-playing" style="margin-top:16px;"><div class="empty-state">กำลังโหลดสถานะ...</div></div>
+    <div class="transport">
+      <button type="button" class="tbtn" id="btn-playpause" disabled>${ICONS.pause}<span id="playpause-label">หยุดชั่วคราว</span></button>
+      <button type="button" class="tbtn" id="btn-skip" disabled>${ICONS.skip}ข้ามเพลง</button>
+      <button type="button" class="tbtn danger" id="btn-stop" disabled>${ICONS.stop}หยุดเล่น</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-head">
+      <div class="section-icon">${ICONS.search}</div>
+      <h2 class="section-title">เปิดเพลง</h2>
+    </div>
+    <p class="section-desc">พิมพ์ชื่อเพลงหรือวางลิงก์ แล้วบอทจะเข้าห้องเสียงและเล่นให้ทันที</p>
+    <div class="player-row">
+      <select id="voice-channel" aria-label="ห้องเสียง">
+        ${voiceChannels.length
+          ? voiceChannels
+              .map((c) => `<option value="${c.id}">🔊 ${escapeHtml(c.name)}${c.members ? ` (${c.members} คน)` : ''}</option>`)
+              .join('')
+          : '<option value="">(ไม่มีห้องเสียง)</option>'}
+      </select>
+      <input type="text" id="play-query" placeholder="เช่น bodyslam ความเชื่อ" autocomplete="off">
+      <button type="button" class="primary" id="btn-play">เล่น</button>
+    </div>
+    <div class="toast" id="play-toast"></div>
   </div>
 
   <form method="POST" action="/guild/${guild.id}">
@@ -520,25 +574,62 @@ ${headerNav(bot)}
   </form>
 </main>
 <script>
+const GUILD = '${guild.id}';
+const $ = (id) => document.getElementById(id);
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function toast(msg, ok) {
+  const t = $('play-toast');
+  t.textContent = msg;
+  t.className = 'toast ' + (ok ? 'ok' : 'err');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { t.className = 'toast'; }, 5000);
+}
+
+async function post(path, body) {
+  const res = await fetch('/guild/' + GUILD + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'ทำรายการไม่สำเร็จ');
+  return data;
+}
+
 async function refreshStatus() {
   try {
-    const res = await fetch('/guild/${guild.id}/status.json');
+    const res = await fetch('/guild/' + GUILD + '/status.json');
     const data = await res.json();
-    const el = document.getElementById('now-playing');
-    if (!data.playing) {
+    const el = $('now-playing');
+    const playing = Boolean(data.playing);
+
+    $('btn-skip').disabled = !playing;
+    $('btn-stop').disabled = !playing;
+    $('btn-playpause').disabled = !playing;
+    $('playpause-label').textContent = data.paused ? 'เล่นต่อ' : 'หยุดชั่วคราว';
+
+    if (!playing) {
       el.innerHTML = '<div class="empty-state">ตอนนี้ไม่มีเพลงเล่นอยู่</div>';
       return;
     }
+    if (data.voiceChannelId) $('voice-channel').value = data.voiceChannelId;
+
     const rest = data.queue.slice(1);
     const queueHtml = rest.length
-      ? '<ul class="np-queue">' + rest.map((s, i) => '<li><span class="idx">' + (i + 1) + '.</span>' + s + '</li>').join('') + '</ul>'
+      ? '<ul class="np-queue">' + rest.map((s, i) => '<li><span class="idx">' + (i + 1) + '.</span>' + esc(s) + '</li>').join('') + '</ul>'
       : '';
     el.innerHTML =
       '<div class="np-card">' +
         '<div class="eq"><span></span><span></span><span></span></div>' +
         '<div>' +
-          '<div class="np-title">' + data.nowPlaying + '</div>' +
-          '<div class="np-sub">🔊 ' + data.voiceChannel + '</div>' +
+          '<div class="np-title">' + esc(data.nowPlaying) + (data.paused ? ' (หยุดชั่วคราว)' : '') + '</div>' +
+          '<div class="np-sub">🔊 ' + esc(data.voiceChannel) + ' · ระดับเสียง ' + data.volume + '%</div>' +
         '</div>' +
       '</div>' +
       queueHtml;
@@ -546,6 +637,43 @@ async function refreshStatus() {
     // dashboard status polling failure is non-critical; keep last known state
   }
 }
+
+async function play() {
+  const query = $('play-query').value.trim();
+  if (!query) return toast('กรุณาใส่ชื่อเพลงหรือลิงก์', false);
+  const btn = $('btn-play');
+  btn.disabled = true;
+  btn.textContent = 'กำลังหา...';
+  try {
+    const data = await post('/play', { query, channelId: $('voice-channel').value });
+    toast('เพิ่มเข้าคิวแล้ว: ' + data.title, true);
+    $('play-query').value = '';
+    refreshStatus();
+  } catch (e) {
+    toast(e.message, false);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'เล่น';
+  }
+}
+
+async function control(action) {
+  try {
+    await post('/control', { action });
+    refreshStatus();
+  } catch (e) {
+    toast(e.message, false);
+  }
+}
+
+$('btn-play').addEventListener('click', play);
+$('play-query').addEventListener('keydown', (e) => { if (e.key === 'Enter') play(); });
+$('btn-playpause').addEventListener('click', () => {
+  control($('playpause-label').textContent === 'เล่นต่อ' ? 'resume' : 'pause');
+});
+$('btn-skip').addEventListener('click', () => control('skip'));
+$('btn-stop').addEventListener('click', () => control('stop'));
+
 refreshStatus();
 setInterval(refreshStatus, 5000);
 </script>`,

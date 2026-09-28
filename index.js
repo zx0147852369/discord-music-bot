@@ -8,7 +8,16 @@ const { getGuildSettings } = require('./db');
 const { DJ_ONLY_COMMANDS, canUseDjCommand, isCommandDisabled } = require('./lib/permissions');
 const startDashboard = require('./web/server');
 
-const ffmpegPath = process.env.FFMPEG_PATH || require('ffmpeg-static');
+// Prefer a system ffmpeg over the bundled static build: the static binary segfaults on any
+// HTTPS input in some container images, which makes songs end instantly and silently.
+function resolveFfmpegPath() {
+  if (process.env.FFMPEG_PATH) return process.env.FFMPEG_PATH;
+  const probe = require('child_process').spawnSync('ffmpeg', ['-version']);
+  if (!probe.error && probe.status === 0) return 'ffmpeg';
+  console.warn('System ffmpeg not found, falling back to ffmpeg-static');
+  return require('ffmpeg-static');
+}
+const ffmpegPath = resolveFfmpegPath();
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
