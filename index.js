@@ -14,10 +14,18 @@ const startDashboard = require('./web/server');
 // Prefer a system ffmpeg over the bundled static build: the static binary segfaults on any
 // HTTPS input in some container images, which makes songs end instantly and silently.
 function resolveFfmpegPath() {
-  if (process.env.FFMPEG_PATH) return process.env.FFMPEG_PATH;
+  if (process.env.FFMPEG_PATH) {
+    console.log(`Using ffmpeg from FFMPEG_PATH: ${process.env.FFMPEG_PATH}`);
+    return process.env.FFMPEG_PATH;
+  }
   const probe = require('child_process').spawnSync('ffmpeg', ['-version']);
-  if (!probe.error && probe.status === 0) return 'ffmpeg';
-  console.warn('System ffmpeg not found, falling back to ffmpeg-static');
+  if (!probe.error && probe.status === 0) {
+    console.log('Using system ffmpeg');
+    return 'ffmpeg';
+  }
+  // ffmpeg-static segfaults on HTTPS streams in some containers, so songs end instantly.
+  // If you see this line in production, install a system ffmpeg (see nixpacks.toml).
+  console.warn('System ffmpeg not found, falling back to ffmpeg-static (streams may fail!)');
   return require('ffmpeg-static');
 }
 const ffmpegPath = resolveFfmpegPath();

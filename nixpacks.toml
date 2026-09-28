@@ -1,2 +1,6 @@
+# ffmpeg is required at runtime: the bundled ffmpeg-static binary segfaults on HTTPS audio
+# streams in this container, which makes every song end instantly and silently. Installing a
+# real system ffmpeg here is what index.js's resolveFfmpegPath() picks up. (This is the
+# NIXPACKS builder, so RAILPACK_DEPLOY_APT_PACKAGES does NOT apply — the package must go here.)
 [phases.setup]
-nixPkgs = ["nodejs_22", "npm-9_x", "python3", "gcc", "gnumake"]
+nixPkgs = ["nodejs_22", "npm-9_x", "python3", "gcc", "gnumake", "ffmpeg"]
