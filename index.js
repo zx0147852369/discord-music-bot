@@ -146,10 +146,11 @@ async function continueListening(guildId, lastSong, voiceChannel, textChannel) {
       textChannel,
       metadata: { auto: true },
     });
+    const reasonLabel = { related: 'เพลงแนวเดียวกัน', history: 'จากประวัติ', loop: 'เพลย์ลิสต์วนซ้ำ' };
     logEvent({
       guildId,
       type: 'autoplay',
-      detail: `${song.name} (${pick.reason === 'related' ? 'เพลงแนวเดียวกัน' : 'จากประวัติ'})`,
+      detail: `${song.name} (${reasonLabel[pick.reason] || 'อัตโนมัติ'})`,
     });
   } catch (e) {
     console.error('Autoplay failed:', e.message);

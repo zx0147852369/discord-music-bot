@@ -56,6 +56,12 @@ const EVENT_LABELS = {
   dashboard_play_failed: 'สั่งเล่นจากเว็บไม่สำเร็จ',
   dashboard_control: 'ควบคุมจากเว็บ',
   settings_saved: 'บันทึกการตั้งค่า',
+  loop_added: 'เพิ่มเพลงวนซ้ำ',
+  loop_removed: 'ลบเพลงวนซ้ำ',
+  loop_full: 'ลิสต์วนซ้ำเต็ม',
+  loop_add_failed: 'เพิ่มเพลงวนซ้ำไม่สำเร็จ',
+  autoplay: 'เล่นต่อเนื่อง',
+  autoplay_failed: 'เล่นต่อเนื่องไม่สำเร็จ',
   login_ok: 'เข้าสู่ระบบสำเร็จ',
   login_failed: 'รหัสผ่านผิด',
   login_locked: 'ถูกล็อกชั่วคราว',
@@ -479,6 +485,26 @@ ${fontsAndReset()}
   .kv dd { margin: 0; padding: 7px 0; word-break: break-word; font-variant-numeric: tabular-nums; }
   @media (max-width: 560px) { .kv { grid-template-columns: minmax(0, 1fr); } .kv dt { padding-bottom: 0; } }
 
+  .loop-list { margin: 6px 0 4px; }
+  .loop-item {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center;
+    padding: 10px 0; border-top: 1px solid var(--border); font-size: 14px;
+  }
+  .loop-item:first-child { border-top: none; }
+  .loop-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .loop-title a { color: var(--text); text-decoration: none; }
+  .loop-title a:hover { color: var(--accent); text-decoration: underline; }
+  .loop-meta { font-size: 12px; color: var(--text-faint); white-space: nowrap; }
+  .loop-remove {
+    border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-muted);
+    width: 28px; height: 28px; border-radius: 8px; cursor: pointer; font-size: 12px; line-height: 1;
+  }
+  .loop-remove:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
+  .loop-add { display: flex; gap: 10px; margin-top: 12px; }
+  .loop-add select, .loop-add input { flex: 1; min-width: 0; margin-top: 0; }
+  .loop-add .primary { flex-shrink: 0; }
+  @media (max-width: 560px) { .loop-add { flex-wrap: wrap; } .loop-add .primary { width: 100%; } }
+
   .top-list { margin-top: 14px; }
   .top-row {
     display: grid; grid-template-columns: 26px 1fr auto; gap: 12px; align-items: center;
@@ -883,7 +909,78 @@ function historyRail(guild, recent) {
 </aside>`;
 }
 
-function guildSettingsPage({ guild, settings, textChannels, roles, voiceChannels, allCommands, saved, bot, recentHistory = [] }) {
+/**
+ * The loop-playlist manager: the songs a server has pinned for continuous play, plus two
+ * ways to add more. These forms POST to their own endpoints, so this card sits OUTSIDE the
+ * settings form (HTML forms can't nest) and applies each change on its own.
+ */
+function loopCard(guild, settings, loopSongs, recentHistory) {
+  const items = loopSongs
+    .map(
+      (s) => `<div class="loop-item">
+        <span class="loop-title">${
+          s.url ? `<a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title)}</a>` : escapeHtml(s.title)
+        }</span>
+        <span class="loop-meta">${s.last_played ? 'เล่นล่าสุด ' + escapeHtml(formatTime(s.last_played)) : 'ยังไม่ถูกเล่น'}</span>
+        <form method="POST" action="/guild/${guild.id}/loop/remove" style="margin:0;">
+          <input type="hidden" name="url" value="${escapeHtml(s.url)}">
+          <button type="submit" class="loop-remove" title="ลบออกจากลิสต์" aria-label="ลบ">✕</button>
+        </form>
+      </div>`,
+    )
+    .join('');
+
+  const historyOptions = recentHistory
+    .filter((h) => h.url)
+    .map((h) => `<option value="${escapeHtml(h.url)}">${escapeHtml(h.title)}</option>`)
+    .join('');
+
+  return `<div class="card" id="loop">
+    <div class="section-head">
+      <div class="section-icon">${ICONS.note}</div>
+      <h2 class="section-title">เพลย์ลิสต์วนซ้ำ</h2>
+    </div>
+    <p class="section-desc">
+      เลือกเพลงที่อยากให้บอทวนเล่นตอนคิวหมด — ระบบจะวนเฉพาะเพลงในลิสต์นี้ไปเรื่อยๆ ไม่หาเพลงใหม่เข้ามา (ลิสต์ว่าง = หาเพลงแนวเดียวกันมาเล่นแทน)
+      ${
+        settings.autoplay
+          ? ''
+          : '<br><b style="color:var(--warning)">ต้องเปิดสวิตช์ “เล่นต่อเนื่องไม่มีสะดุด” ด้านบนก่อน ลิสต์นี้จึงจะทำงาน</b>'
+      }
+    </p>
+
+    <div class="loop-list">
+      ${items || '<div class="empty-state">ยังไม่ได้เลือกเพลง</div>'}
+    </div>
+
+    ${
+      historyOptions
+        ? `<form method="POST" action="/guild/${guild.id}/loop/add" class="loop-add">
+      <select name="url" aria-label="เลือกจากประวัติ">${historyOptions}</select>
+      <button type="submit" class="primary">เพิ่มจากประวัติ</button>
+    </form>`
+        : ''
+    }
+
+    <form method="POST" action="/guild/${guild.id}/loop/add" class="loop-add">
+      <input type="text" name="query" placeholder="วางลิงก์เพลง หรือพิมพ์ชื่อเพลง" autocomplete="off">
+      <button type="submit" class="primary">เพิ่ม</button>
+    </form>
+  </div>`;
+}
+
+function guildSettingsPage({
+  guild,
+  settings,
+  textChannels,
+  roles,
+  voiceChannels,
+  allCommands,
+  saved,
+  bot,
+  recentHistory = [],
+  loopSongs = [],
+}) {
   const channelOptions = [`<option value="">(ห้องที่พิมพ์คำสั่ง /play)</option>`]
     .concat(
       textChannels.map(
@@ -1001,7 +1098,7 @@ function guildSettingsPage({ guild, settings, textChannels, roles, voiceChannels
         <div class="section-icon">${ICONS.note}</div>
         <h2 class="section-title">เล่นเพลงต่อเนื่องอัตโนมัติ</h2>
       </div>
-      <p class="section-desc">เมื่อเล่นครบคิว บอทจะหาเพลงแนวเดียวกับเพลงล่าสุดมาเล่นต่อเอง โดยดูจากประวัติของเซิร์ฟเวอร์นี้</p>
+      <p class="section-desc">เมื่อเล่นครบคิว บอทจะหาเพลงแนวเดียวกับเพลงล่าสุดมาเล่นต่อเอง โดยดูจากประวัติของเซิร์ฟเวอร์นี้ — หรือถ้าตั้ง “เพลย์ลิสต์วนซ้ำ” ด้านล่างไว้ จะวนเฉพาะเพลงพวกนั้นแทน</p>
       <label class="cmd-toggle" style="margin-top:14px; max-width:280px;">
         <span class="cmd-name" style="font-family:inherit;">เล่นต่อเนื่องไม่มีสะดุด</span>
         <span class="switch">
@@ -1025,6 +1122,8 @@ function guildSettingsPage({ guild, settings, textChannels, roles, voiceChannels
       ${saved ? '<span class="saved-toast">บันทึกแล้ว</span>' : ''}
     </div>
   </form>
+
+  ${loopCard(guild, settings, loopSongs, recentHistory)}
 </main>
 ${historyRail(guild, recentHistory)}
 </div>

@@ -10,6 +10,10 @@ const {
   getSongHistory,
   getTopSongs,
   getHistoryStats,
+  getHistorySongByUrl,
+  addLoopSong,
+  removeLoopSong,
+  getLoopSongs,
 } = require('../db');
 const { resolveSong } = require('../lib/ytDlpPlugin');
 const { getConsoleLogs } = require('../lib/consoleCapture');
@@ -170,6 +174,7 @@ function startDashboard(client) {
         saved: req.query.saved === '1',
         bot: botInfo(),
         recentHistory: getSongHistory(guild.id, 12),
+        loopSongs: getLoopSongs(guild.id),
       }),
     );
   });
@@ -374,6 +379,49 @@ function startDashboard(client) {
 
   app.get('/system.json', requireAuth, (req, res) => {
     res.json({ fields: systemFields(resourceSnapshot()) });
+  });
+
+  // Add a song to the server's loop list. A history pick already carries its metadata (no
+  // network); anything typed is resolved through yt-dlp so we store a real playable URL.
+  app.post('/guild/:id/loop/add', requireAuth, async (req, res) => {
+    const guild = client.guilds.cache.get(req.params.id);
+    if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
+    const back = `/guild/${guild.id}#loop`;
+    const fromHistory = (req.body.url || '').trim();
+    const query = (req.body.query || '').trim();
+
+    try {
+      let song = fromHistory ? getHistorySongByUrl(guild.id, fromHistory) : null;
+      if (!song && (query || fromHistory)) {
+        const resolved = await resolveSong(client.distube, query || fromHistory, { member: guild.members.me });
+        const one = resolved?.songs ? resolved.songs[0] : resolved; // a playlist → just its first track
+        if (one?.url) song = { url: one.url, title: one.name, source: one.source, duration: one.duration };
+      }
+      if (!song?.url) {
+        logEvent({ guildId: guild.id, level: 'warn', type: 'loop_add_failed', detail: query || fromHistory || '(ว่าง)' });
+      } else {
+        const result = addLoopSong(guild.id, song);
+        logEvent({
+          guildId: guild.id,
+          level: result.ok ? 'info' : 'warn',
+          type: result.ok ? 'loop_added' : 'loop_full',
+          detail: result.ok ? song.title : `ลิสต์เต็มแล้ว (${song.title})`,
+        });
+      }
+    } catch (e) {
+      logEvent({ guildId: guild.id, level: 'warn', type: 'loop_add_failed', detail: e.message });
+    }
+    res.redirect(back);
+  });
+
+  app.post('/guild/:id/loop/remove', requireAuth, (req, res) => {
+    const guild = client.guilds.cache.get(req.params.id);
+    if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
+    if (req.body.url) {
+      removeLoopSong(guild.id, req.body.url);
+      logEvent({ guildId: guild.id, type: 'loop_removed', detail: req.body.url });
+    }
+    res.redirect(`/guild/${guild.id}#loop`);
   });
 
   app.get('/guild/:id/history', requireAuth, (req, res) => {

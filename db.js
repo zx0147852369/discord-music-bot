@@ -59,6 +59,21 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_history_url ON song_history (guild_id, url);
 `);
 
+// A hand-picked set of songs a server wants looped forever. When this holds anything, the
+// "keep playing" feature rotates through only these instead of hunting for new tracks.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS autoplay_loop (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id TEXT NOT NULL,
+    url TEXT NOT NULL,
+    title TEXT NOT NULL,
+    source TEXT,
+    duration INTEGER,
+    added_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_loop_guild_url ON autoplay_loop (guild_id, url);
+`);
+
 const MAX_HISTORY = 5000;
 
 const insertHistoryStmt = db.prepare(`
@@ -114,6 +129,64 @@ const getTopSongs = (guildId, limit = 10) => topSongsStmt.all(guildId, Math.min(
 const getHistoryStats = (guildId) => historyStatsStmt.get(guildId) || { total: 0, unique_songs: 0, auto_plays: 0 };
 const getRecentlyPlayedUrls = (guildId, limit = 30) => recentUrlsStmt.all(guildId, limit).map((r) => r.url);
 const getRandomPastSongs = (guildId, limit = 5) => randomPastStmt.all(guildId, limit);
+const getHistorySongByUrl = (guildId, url) => historyByUrlStmt.get(guildId, url) || null;
+
+// --- Loop playlist -----------------------------------------------------------------------
+const LOOP_LIMIT = 50;
+
+const insertLoopStmt = db.prepare(`
+  INSERT INTO autoplay_loop (guild_id, url, title, source, duration, added_at)
+  VALUES (@guild_id, @url, @title, @source, @duration, @added_at)
+  ON CONFLICT(guild_id, url) DO UPDATE SET title = excluded.title, source = excluded.source, duration = excluded.duration
+`);
+const deleteLoopStmt = db.prepare('DELETE FROM autoplay_loop WHERE guild_id = ? AND url = ?');
+const loopCountStmt = db.prepare('SELECT COUNT(*) AS n FROM autoplay_loop WHERE guild_id = ?');
+const loopExistsStmt = db.prepare('SELECT 1 FROM autoplay_loop WHERE guild_id = ? AND url = ?');
+const historyByUrlStmt = db.prepare(
+  'SELECT title, url, source, duration FROM song_history WHERE guild_id = ? AND url = ? ORDER BY id DESC LIMIT 1',
+);
+// Each row carries when the server last played it, so the UI can show the rotation order and
+// the bot can pick whatever is due next.
+const loopSongsStmt = db.prepare(`
+  SELECT l.url, l.title, l.source, l.duration, l.added_at,
+         (SELECT MAX(h.played_at) FROM song_history h WHERE h.guild_id = l.guild_id AND h.url = l.url) AS last_played
+  FROM autoplay_loop l
+  WHERE l.guild_id = ?
+  ORDER BY l.id ASC
+`);
+// The next song in the rotation: never-played first, then whatever has gone unplayed longest.
+// Ordered by the song_history row id, not its timestamp — the id is strictly increasing, so
+// several plays landing in the same millisecond still rotate cleanly instead of sticking on
+// the lowest-id track.
+const loopNextStmt = db.prepare(`
+  SELECT l.url, l.title, l.source, l.duration,
+         (SELECT MAX(h.id) FROM song_history h WHERE h.guild_id = l.guild_id AND h.url = l.url) AS last_play_id
+  FROM autoplay_loop l
+  WHERE l.guild_id = ?
+  ORDER BY (last_play_id IS NOT NULL), last_play_id ASC, l.id ASC
+  LIMIT 1
+`);
+
+/** Add a song to the loop list. Silently updates an existing one; refuses to grow past the cap. */
+function addLoopSong(guildId, { url, title, source = null, duration = null }) {
+  if (!url || !title) return { ok: false, reason: 'invalid' };
+  const already = loopExistsStmt.get(guildId, url);
+  if (!already && loopCountStmt.get(guildId).n >= LOOP_LIMIT) return { ok: false, reason: 'full' };
+  insertLoopStmt.run({
+    guild_id: guildId,
+    url,
+    title: String(title).slice(0, 300),
+    source,
+    duration: duration == null ? null : Math.round(duration),
+    added_at: Date.now(),
+  });
+  return { ok: true, updated: Boolean(already) };
+}
+
+const removeLoopSong = (guildId, url) => deleteLoopStmt.run(guildId, url);
+const getLoopSongs = (guildId) => loopSongsStmt.all(guildId);
+const getLoopCount = (guildId) => loopCountStmt.get(guildId).n;
+const getLoopNext = (guildId) => loopNextStmt.get(guildId) || null;
 
 // Activity log. guild_id is NULL for events that are not tied to a server (dashboard
 // logins, bot start-up).
@@ -240,4 +313,10 @@ module.exports = {
   getHistoryStats,
   getRecentlyPlayedUrls,
   getRandomPastSongs,
+  getHistorySongByUrl,
+  addLoopSong,
+  removeLoopSong,
+  getLoopSongs,
+  getLoopCount,
+  getLoopNext,
 };
