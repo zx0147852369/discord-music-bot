@@ -401,55 +401,62 @@ ${fontsAndReset()}
 
   .empty-state { text-align: center; padding: 30px 10px; color: var(--text-faint); font-size: 13.5px; }
 
-  /* Now-playing hero: a dark, glowing player panel that stands out against the white cards. */
+  /* Now-playing hero: modelled on a real music player — the track's own cover art, a blurred
+     version of it as the backdrop, and a SoundCloud-style waveform that fills with playback. */
   .np-hero {
-    position: relative; overflow: hidden; border-radius: 16px; padding: 20px 20px 0;
-    background:
-      radial-gradient(130% 150% at 10% -10%, rgba(120,140,255,.38), transparent 55%),
-      radial-gradient(120% 130% at 100% 0%, rgba(168,110,255,.28), transparent 50%),
-      linear-gradient(135deg, #14162e 0%, #222a5e 55%, #2c2360 100%);
-    box-shadow: 0 16px 40px -16px rgba(41,52,140,.6), inset 0 1px 0 rgba(255,255,255,.07);
-    color: #fff;
+    position: relative; overflow: hidden; border-radius: 16px; padding: 20px 20px 18px;
+    background: linear-gradient(135deg, #14162e 0%, #222a5e 55%, #2c2360 100%);
+    box-shadow: 0 16px 40px -16px rgba(20,22,46,.7), inset 0 1px 0 rgba(255,255,255,.06);
+    color: #fff; isolation: isolate;
   }
-  .np-hero.paused { filter: saturate(.65) brightness(.92); }
-  .np-top { display: flex; align-items: flex-start; gap: 16px; position: relative; z-index: 2; }
-  .np-art {
-    width: 58px; height: 58px; border-radius: 50%; flex-shrink: 0; position: relative;
-    display: grid; place-items: center;
-    background: conic-gradient(from 0deg, #5e74ff, #a56bff, #54e0b4, #5e74ff);
-    box-shadow: 0 8px 22px -6px rgba(120,120,255,.75);
-    animation: npspin 7s linear infinite;
+  /* Blurred cover fills the panel; the scrim keeps text readable over any artwork. */
+  .np-bg {
+    position: absolute; inset: -30px; background-size: cover; background-position: center;
+    filter: blur(30px) saturate(1.35) brightness(.62); transform: scale(1.15);
+    opacity: 0; transition: opacity .6s ease; z-index: 0;
   }
-  .np-hero.paused .np-art { animation-play-state: paused; }
-  .np-art::before { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: #14162e; }
-  .np-art::after { content: ''; position: absolute; width: 9px; height: 9px; border-radius: 50%; background: #aab4ff; z-index: 2; box-shadow: 0 0 12px 2px rgba(150,160,255,.7); }
-  .np-art svg { position: relative; z-index: 2; width: 22px; height: 22px; color: #dfe4ff; }
+  .np-bg.on { opacity: 1; }
+  .np-scrim { position: absolute; inset: 0; z-index: 1;
+    background: linear-gradient(180deg, rgba(10,12,30,.35) 0%, rgba(10,12,30,.55) 60%, rgba(10,12,30,.82) 100%); }
+  .np-top { display: flex; align-items: flex-start; gap: 15px; position: relative; z-index: 2; }
+  .np-cover {
+    width: 66px; height: 66px; border-radius: 12px; flex-shrink: 0; object-fit: cover; background: #0e1024;
+    box-shadow: 0 10px 24px -8px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.08) inset;
+  }
+  /* Fallback disc when a track has no artwork. */
+  .np-cover.fallback { display: grid; place-items: center; background: conic-gradient(from 0deg, #5e74ff, #a56bff, #54e0b4, #5e74ff); }
+  .np-cover-fb { width: 66px; height: 66px; border-radius: 12px; flex-shrink: 0; display: none; place-items: center;
+    background: conic-gradient(from 0deg, #5e74ff, #a56bff, #54e0b4, #5e74ff); box-shadow: 0 10px 24px -8px rgba(0,0,0,.6); }
+  .np-cover-fb svg { width: 26px; height: 26px; color: #fff; }
   .np-meta { min-width: 0; flex: 1; }
-  .np-live { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; letter-spacing: .7px; color: #a9b8ff; }
-  .np-live .dot { width: 7px; height: 7px; border-radius: 50%; background: #54e08a; animation: nplive 1.6s ease-out infinite; }
+  .np-live { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; letter-spacing: .7px; color: #cdd6ff; text-shadow: 0 1px 3px rgba(0,0,0,.4); }
+  .np-live .dot { width: 7px; height: 7px; border-radius: 50%; background: #35e07f; animation: nplive 1.6s ease-out infinite; }
   .np-hero.paused .np-live .dot { background: #f0b429; animation: none; }
-  @keyframes nplive { 0% { box-shadow: 0 0 0 0 rgba(84,224,138,.6); } 100% { box-shadow: 0 0 0 9px rgba(84,224,138,0); } }
+  @keyframes nplive { 0% { box-shadow: 0 0 0 0 rgba(53,224,127,.6); } 100% { box-shadow: 0 0 0 9px rgba(53,224,127,0); } }
   .np-name {
-    font-size: 16px; font-weight: 800; line-height: 1.35; margin-top: 6px; color: #fff;
+    font-size: 16px; font-weight: 800; line-height: 1.35; margin-top: 6px; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.45);
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
-  .np-info { font-size: 12.5px; color: #aab4e6; margin-top: 6px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-  .np-info .sep { opacity: .4; }
+  .np-artist { font-size: 13px; font-weight: 600; color: #dde4ff; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 4px rgba(0,0,0,.4); }
+  .np-info { font-size: 12px; color: #b7c0e8; margin-top: 5px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; text-shadow: 0 1px 3px rgba(0,0,0,.4); }
+  .np-info .sep { opacity: .45; }
   .np-badge {
     margin-left: auto; flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 5px 11px; border-radius: 999px;
-    background: rgba(240,180,41,.16); color: #ffd479; border: 1px solid rgba(240,180,41,.32); display: none;
+    background: rgba(240,180,41,.2); color: #ffd479; border: 1px solid rgba(240,180,41,.4); display: none;
   }
   .np-hero.paused .np-badge { display: inline-block; }
-  .np-wave-wrap { position: relative; height: 66px; margin: 16px -20px 0; }
+  .np-wave-wrap { position: relative; height: 58px; margin: 16px 0 8px; z-index: 2; }
   canvas.np-wave { display: block; width: 100%; height: 100%; }
+  .np-times { position: relative; z-index: 2; display: flex; justify-content: space-between; font-size: 11.5px; font-variant-numeric: tabular-nums; color: #c3cbf0; text-shadow: 0 1px 3px rgba(0,0,0,.4); }
 
   .np-queue { margin: 16px 0 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
   .np-queue .np-queue-head { font-size: 11.5px; font-weight: 700; letter-spacing: .3px; color: var(--text-muted); padding: 10px 14px; background: var(--surface-2); }
   .np-queue li {
-    padding: 9px 14px; font-size: 13px; color: var(--text-muted);
-    border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: baseline;
+    padding: 8px 12px; font-size: 13px; color: var(--text); border-top: 1px solid var(--border);
+    display: flex; gap: 11px; align-items: center;
   }
-  .np-queue li .idx { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .np-queue li .idx { color: var(--text-faint); font-weight: 700; font-variant-numeric: tabular-nums; flex-shrink: 0; width: 14px; text-align: center; }
+  .np-queue li .qthumb { width: 34px; height: 34px; border-radius: 7px; object-fit: cover; flex-shrink: 0; background: var(--surface-2); }
   .np-queue li .qname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   @keyframes npspin { to { transform: rotate(360deg); } }
 
@@ -1246,12 +1253,14 @@ async function post(path, body) {
   return data;
 }
 
-// A self-contained canvas music visualiser. It doesn't read real audio (the server only sends
-// track metadata) — it renders an organic, symmetric waveform that moves while a song plays
-// and settles almost flat when paused, so the panel feels alive without lying about levels.
-const wave = (() => {
-  let raf = null, canvas = null, ctx = null, W = 0, H = 0, dpr = 1, t = 0, paused = false, amp = 0;
-  const BARS = 60;
+// A SoundCloud-style player waveform. The bar heights are a stable shape derived from the
+// track title (so each song has its own consistent waveform, not a random one that reads as
+// fake), and the coloured portion fills left-to-right with real playback position — the same
+// currentTime/duration the server reports, interpolated between polls so it moves smoothly.
+const player = (() => {
+  let raf = null, lblTimer = null, canvas = null, ctx = null, W = 0, H = 0, dpr = 1;
+  let heights = [], title = '', base = 0, dur = 0, at = 0, paused = false, curEl = null, totEl = null;
+  const BARS = 64;
   function resize() {
     if (!canvas) return;
     const r = canvas.getBoundingClientRect();
@@ -1260,51 +1269,73 @@ const wave = (() => {
     H = Math.max(1, Math.round(r.height * dpr));
     canvas.width = W; canvas.height = H;
   }
-  function bar(x, y, w, h, r) {
-    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); }
-    else ctx.fillRect(x, y, w, h);
-  }
-  function draw() {
-    if (!ctx) return;
-    ctx.clearRect(0, 0, W, H);
-    const mid = H / 2, gap = W / BARS, bw = gap * 0.46, target = paused ? 0.08 : 1;
-    amp += (target - amp) * 0.08; // ease between playing/paused so it doesn't snap
+  function seed(str) {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    const rnd = () => { h += 0x6d2b79f5; let t = h; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    heights = [];
     for (let i = 0; i < BARS; i++) {
-      const env = Math.sin((i / (BARS - 1)) * Math.PI);      // taper the ends, like a real clip
-      const s = Math.sin(i * 0.5 + t * 2.1) * 0.5 + Math.sin(i * 0.17 - t * 1.3) * 0.34 + Math.sin(i * 0.93 + t * 3.9) * 0.16;
-      const h = Math.max(dpr * 1.5, (0.22 + Math.abs(s) * 0.78) * env * amp * (H * 0.46));
-      const x = i * gap + (gap - bw) / 2;
-      const g = ctx.createLinearGradient(0, mid - h, 0, mid + h);
-      g.addColorStop(0, 'rgba(168,120,255,0.95)');
-      g.addColorStop(0.5, 'rgba(110,130,255,0.95)');
-      g.addColorStop(1, 'rgba(84,224,180,0.9)');
-      ctx.fillStyle = g;
-      bar(x, mid - h, bw, h * 2, bw * 0.5);
+      const env = Math.pow(Math.sin((i / (BARS - 1)) * Math.PI), 0.55); // gentle taper at the ends
+      const hump = 0.5 + 0.5 * Math.sin(i * 0.28 + rnd() * 6);          // a couple of musical swells
+      heights.push(Math.max(0.14, (0.35 + rnd() * 0.65) * 0.6 + hump * 0.4) * env);
     }
   }
-  function loop() { t += paused ? 0.004 : 0.024; draw(); raf = requestAnimationFrame(loop); }
+  function now() { return performance.now() / 1000; }
+  function live() { return paused ? base : base + (now() - at); }
+  function fmt(s) { s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60); return m + ':' + String(s % 60).padStart(2, '0'); }
+  function bar(x, y, w, h, r) { if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); } else ctx.fillRect(x, y, w, h); }
+  function draw() {
+    if (!ctx) return;
+    const l = live();
+    const pct = dur > 0 ? Math.min(1, l / dur) : 1; // live streams (no duration) show fully lit
+    ctx.clearRect(0, 0, W, H);
+    const mid = H / 2, gap = W / BARS, bw = gap * 0.5;
+    const breath = paused ? 0.55 : 0.94 + 0.06 * Math.sin(now() * 2.2);
+    for (let i = 0; i < BARS; i++) {
+      const x = i * gap + (gap - bw) / 2;
+      const h = Math.max(dpr * 1.5, (heights[i] || 0.2) * (H * 0.46) * breath);
+      if ((i + 0.5) / BARS <= pct) {
+        const g = ctx.createLinearGradient(0, mid - h, 0, mid + h);
+        g.addColorStop(0, 'rgba(150,120,255,0.98)');
+        g.addColorStop(0.5, 'rgba(96,132,255,0.98)');
+        g.addColorStop(1, 'rgba(60,214,170,0.95)');
+        ctx.fillStyle = g;
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      }
+      bar(x, mid - h, bw, h * 2, bw * 0.5);
+    }
+    if (dur > 0) { ctx.fillStyle = 'rgba(255,255,255,0.92)'; bar(Math.min(W - dpr * 2, pct * W), mid - H * 0.42, dpr * 2, H * 0.84, dpr); }
+  }
+  function labels() { if (!curEl) return; const l = live(); curEl.textContent = fmt(dur > 0 ? Math.min(l, dur) : l); if (totEl) totEl.textContent = dur > 0 ? fmt(dur) : 'สด'; }
+  function loop() { draw(); raf = requestAnimationFrame(loop); }
   return {
-    mount(el) { canvas = el; ctx = canvas.getContext('2d'); resize(); if (!raf) loop(); },
-    setPaused(p) { paused = p; },
+    mount(cv, cEl, tEl) { canvas = cv; ctx = cv.getContext('2d'); curEl = cEl; totEl = tEl; resize(); if (!raf) loop(); if (!lblTimer) lblTimer = setInterval(labels, 500); },
+    setTrack(t) { if (t !== title) { title = t; seed(t || ' '); } },
+    update(currentTime, duration, isPaused) { base = currentTime || 0; dur = duration || 0; at = now(); paused = Boolean(isPaused); labels(); },
     resize() { resize(); },
-    stop() { if (raf) cancelAnimationFrame(raf); raf = null; canvas = null; ctx = null; },
+    stop() { if (raf) cancelAnimationFrame(raf); if (lblTimer) clearInterval(lblTimer); raf = null; lblTimer = null; canvas = null; ctx = null; curEl = null; totEl = null; title = ''; },
   };
 })();
-window.addEventListener('resize', () => wave.resize());
+window.addEventListener('resize', () => player.resize());
 
 function heroSkeleton() {
   return (
     '<div class="np-hero" id="np-hero">' +
+      '<div class="np-bg" id="np-bg"></div><div class="np-scrim"></div>' +
       '<div class="np-top">' +
-        '<div class="np-art"><svg viewBox="0 0 24 24" fill="none"><path d="M9 18V5l11-2v13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" stroke="currentColor" stroke-width="1.7"/><circle cx="17.5" cy="16" r="2.5" stroke="currentColor" stroke-width="1.7"/></svg></div>' +
+        '<img class="np-cover" id="np-cover" alt="ปกเพลง">' +
+        '<div class="np-cover-fb" id="np-cover-fb"><svg viewBox="0 0 24 24" fill="none"><path d="M9 18V5l11-2v13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" stroke="currentColor" stroke-width="1.7"/><circle cx="17.5" cy="16" r="2.5" stroke="currentColor" stroke-width="1.7"/></svg></div>' +
         '<div class="np-meta">' +
           '<span class="np-live"><span class="dot"></span><span id="np-live-text">กำลังเล่น</span></span>' +
           '<div class="np-name" id="np-name"></div>' +
+          '<div class="np-artist" id="np-artist" style="display:none;"></div>' +
           '<div class="np-info"><span>🔊 <span id="np-info-ch"></span></span><span class="sep">·</span><span>ระดับเสียง <span id="np-info-vol"></span></span></div>' +
         '</div>' +
         '<span class="np-badge">หยุดชั่วคราว</span>' +
       '</div>' +
       '<div class="np-wave-wrap"><canvas class="np-wave" id="np-wave"></canvas></div>' +
+      '<div class="np-times"><span id="np-cur">0:00</span><span id="np-tot">--:--</span></div>' +
     '</div>' +
     '<div id="np-queue-holder"></div>'
   );
@@ -1323,7 +1354,7 @@ async function refreshStatus() {
     $('playpause-label').textContent = data.paused ? 'เล่นต่อ' : 'หยุดชั่วคราว';
 
     if (!playing) {
-      if ($('np-hero')) { wave.stop(); el.innerHTML = '<div class="empty-state">ตอนนี้ไม่มีเพลงเล่นอยู่</div>'; }
+      if ($('np-hero')) { player.stop(); el.innerHTML = '<div class="empty-state">ตอนนี้ไม่มีเพลงเล่นอยู่</div>'; }
       else if (!el.querySelector('.empty-state')) el.innerHTML = '<div class="empty-state">ตอนนี้ไม่มีเพลงเล่นอยู่</div>';
       return;
     }
@@ -1333,20 +1364,45 @@ async function refreshStatus() {
     // never torn down and re-created on each 5s poll.
     if (!$('np-hero')) {
       el.innerHTML = heroSkeleton();
-      wave.mount($('np-wave'));
-      requestAnimationFrame(() => wave.resize());
+      player.mount($('np-wave'), $('np-cur'), $('np-tot'));
+      const cov = $('np-cover');
+      cov.addEventListener('error', () => { cov.style.display = 'none'; $('np-cover-fb').style.display = 'grid'; $('np-bg').classList.remove('on'); });
+      requestAnimationFrame(() => player.resize());
     }
+
+    // Real cover art: as the foreground image, and blurred behind the panel like a music app.
+    const cov = $('np-cover'), fb = $('np-cover-fb'), bg = $('np-bg');
+    if (data.thumbnail) {
+      if (cov.getAttribute('src') !== data.thumbnail) {
+        cov.style.display = 'block'; fb.style.display = 'none';
+        cov.src = data.thumbnail;
+        bg.style.backgroundImage = 'url("' + String(data.thumbnail).replace(/["\\\\)]/g, '') + '")';
+        bg.classList.add('on');
+      }
+    } else {
+      cov.removeAttribute('src'); cov.style.display = 'none'; fb.style.display = 'grid';
+      bg.classList.remove('on'); bg.style.backgroundImage = '';
+    }
+
     $('np-name').textContent = data.nowPlaying;
+    const artist = data.uploader || (data.source ? data.source.replace('_', ' ') : '');
+    const artistEl = $('np-artist');
+    artistEl.textContent = artist;
+    artistEl.style.display = artist ? 'block' : 'none';
     $('np-info-ch').textContent = data.voiceChannel;
     $('np-info-vol').textContent = data.volume + '%';
     $('np-live-text').textContent = data.paused ? 'พักอยู่' : 'กำลังเล่น';
     $('np-hero').classList.toggle('paused', Boolean(data.paused));
-    wave.setPaused(Boolean(data.paused));
+    player.setTrack(data.nowPlaying);
+    player.update(data.currentTime, data.duration, data.paused);
 
     const rest = data.queue.slice(1);
     $('np-queue-holder').innerHTML = rest.length
       ? '<ul class="np-queue"><li class="np-queue-head">ถัดไปในคิว (' + rest.length + ')</li>' +
-        rest.map((s, i) => '<li><span class="idx">' + (i + 1) + '</span><span class="qname">' + esc(s) + '</span></li>').join('') + '</ul>'
+        rest.map((s, i) =>
+          '<li><span class="idx">' + (i + 1) + '</span>' +
+          (s.thumbnail ? '<img class="qthumb" src="' + esc(s.thumbnail) + '" alt="" loading="lazy">' : '') +
+          '<span class="qname">' + esc(s.name) + '</span></li>').join('') + '</ul>'
       : '';
   } catch (e) {
     // dashboard status polling failure is non-critical; keep last known state

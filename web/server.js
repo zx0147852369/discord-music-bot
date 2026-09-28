@@ -233,14 +233,20 @@ function startDashboard(client) {
   app.get('/guild/:id/status.json', requireAuth, (req, res) => {
     const queue = client.distube.getQueue(req.params.id);
     if (!queue) return res.json({ playing: false });
+    const song = queue.songs[0];
     res.json({
       playing: true,
       paused: queue.paused,
       volume: queue.volume,
-      nowPlaying: queue.songs[0]?.name || '',
+      nowPlaying: song?.name || '',
+      thumbnail: song?.thumbnail || null,
+      uploader: song?.uploader?.name || null,
+      source: song?.source || null,
+      duration: song?.duration || 0, // seconds; 0 for live streams
+      currentTime: queue.currentTime || 0,
       voiceChannel: queue.voice.channel?.name || '',
       voiceChannelId: queue.voice.channel?.id || '',
-      queue: queue.songs.map((s) => s.name),
+      queue: queue.songs.map((s) => ({ name: s.name, thumbnail: s.thumbnail || null })),
     });
   });
 
