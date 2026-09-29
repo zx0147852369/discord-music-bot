@@ -236,8 +236,32 @@ function startDashboard(botHub) {
       req.session.lastGuildId = guild.id;
       return { id: guild.id, name: guild.name };
     }
-    const remembered = req.botClient.guilds.cache.get(req.session.lastGuildId);
-    return remembered ? { id: remembered.id, name: remembered.name } : null;
+    const remembered = req.botClient?.guilds?.cache?.get(req.session.lastGuildId);
+    return remembered && canAccessGuild(req, remembered) ? { id: remembered.id, name: remembered.name } : null;
+  }
+
+  /**
+   * Whether the logged-in user may manage a given server. Own-bot users can manage any server
+   * their bot is in (that's how the guild got here). System-bot users must have the Manage
+   * Server permission there (learned from their Discord login); admins see everything.
+   */
+  function canAccessGuild(req, guild) {
+    if (!guild) return false;
+    if (req.user.role === 'admin' || req.user.bot_mode === 'own') return true;
+    return Array.isArray(req.session.managedGuildIds) && req.session.managedGuildIds.includes(guild.id);
+  }
+
+  /** The server named in :id, but only if the user is allowed to manage it (else null → 404). */
+  function accessibleGuild(req) {
+    const guild = req.botClient?.guilds?.cache?.get(req.params.id);
+    return guild && canAccessGuild(req, guild) ? guild : null;
+  }
+
+  /** Filter a bot's servers down to the ones this user may see. */
+  function visibleGuilds(req, all) {
+    if (req.user.role === 'admin' || req.user.bot_mode === 'own') return all;
+    const ids = req.session.managedGuildIds;
+    return Array.isArray(ids) ? all.filter((g) => ids.includes(g.id)) : [];
   }
 
   app.get('/', requireAuth, (req, res) => {
@@ -245,7 +269,7 @@ function startDashboard(botHub) {
     // users, and the system bot's servers for everyone else.
     const cache = req.botClient?.guilds?.cache;
     const guilds = cache
-      ? [...cache.values()]
+      ? visibleGuilds(req, [...cache.values()])
           .map((g) => ({
             id: g.id,
             name: g.name,
@@ -263,7 +287,7 @@ function startDashboard(botHub) {
   });
 
   app.get('/guild/:id', requireAuth, (req, res) => {
-    const guild = req.botClient.guilds.cache.get(req.params.id);
+    const guild = accessibleGuild(req);
     if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
 
     const textChannels = guild.channels.cache
@@ -297,7 +321,7 @@ function startDashboard(botHub) {
   });
 
   app.post('/guild/:id', requireAuth, (req, res) => {
-    const guild = req.botClient.guilds.cache.get(req.params.id);
+    const guild = accessibleGuild(req);
     if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
 
     const allCommands = [...req.botClient.commands.keys()];
@@ -368,7 +392,7 @@ function startDashboard(botHub) {
   // Queue a song straight from the dashboard. The bot joins the chosen voice channel (or the
   // one it is already in) and announces the song in the guild's configured text channel.
   app.post('/guild/:id/play', requireAuth, express.json(), async (req, res) => {
-    const guild = req.botClient.guilds.cache.get(req.params.id);
+    const guild = accessibleGuild(req);
     if (!guild) return res.status(404).json({ error: 'ไม่พบเซิร์ฟเวอร์นี้' });
 
     const query = String(req.body.query || '').trim();
@@ -518,7 +542,7 @@ function startDashboard(botHub) {
   // Add a song to the server's loop list. A history pick already carries its metadata (no
   // network); anything typed is resolved through yt-dlp so we store a real playable URL.
   app.post('/guild/:id/loop/add', requireAuth, async (req, res) => {
-    const guild = req.botClient.guilds.cache.get(req.params.id);
+    const guild = accessibleGuild(req);
     if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
     const back = `/guild/${guild.id}#loop`;
     const fromHistory = (req.body.url || '').trim();
@@ -549,7 +573,7 @@ function startDashboard(botHub) {
   });
 
   app.post('/guild/:id/loop/remove', requireAuth, (req, res) => {
-    const guild = req.botClient.guilds.cache.get(req.params.id);
+    const guild = accessibleGuild(req);
     if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
     if (req.body.url) {
       removeLoopSong(guild.id, req.body.url);
@@ -563,7 +587,7 @@ function startDashboard(botHub) {
   // song costs a yt-dlp call, so only the first is awaited — the rest stream in in the
   // background while the queue plays.
   app.post('/guild/:id/loop/play', requireAuth, express.json(), async (req, res) => {
-    const guild = req.botClient.guilds.cache.get(req.params.id);
+    const guild = accessibleGuild(req);
     if (!guild) return res.status(404).json({ error: 'ไม่พบเซิร์ฟเวอร์นี้' });
 
     const loop = getLoopSongs(guild.id);
@@ -617,7 +641,7 @@ function startDashboard(botHub) {
   });
 
   app.get('/guild/:id/history', requireAuth, (req, res) => {
-    const guild = req.botClient.guilds.cache.get(req.params.id);
+    const guild = accessibleGuild(req);
     if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
     menuGuild(req, guild); // remember it for the system-wide pages
     res.send(
@@ -633,7 +657,7 @@ function startDashboard(botHub) {
   });
 
   app.get('/guild/:id/logs', requireAuth, (req, res) => {
-    const guild = req.botClient.guilds.cache.get(req.params.id);
+    const guild = accessibleGuild(req);
     if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
     const level = ['info', 'warn', 'error'].includes(req.query.level) ? req.query.level : null;
     res.send(
