@@ -8,6 +8,13 @@ function escapeHtml(str) {
   }[c]));
 }
 
+// A cover-art thumbnail with a built-in fallback glyph (see the .cover CSS). Safe to pass a
+// null/missing url — it just shows the placeholder.
+function coverThumb(url, cls = 'cover-sm') {
+  const img = url ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" onerror="this.remove()">` : '';
+  return `<span class="cover ${cls}">${img}</span>`;
+}
+
 function initials(name) {
   return String(name || '?')
     .trim()
@@ -195,19 +202,29 @@ ${fontsAndReset()}
   .split > main { max-width: none; margin: 0; }
   .rail { position: sticky; top: 34px; display: flex; flex-direction: column; gap: 16px; }
   .rail .card { margin-bottom: 0; padding: 20px; }
+  /* Cover art with a graceful fallback: the glyph shows through until the image loads, and
+     comes back if the image is missing or fails. */
+  .cover { position: relative; flex-shrink: 0; border-radius: 8px; overflow: hidden; background: var(--surface-2); display: grid; place-items: center; }
+  .cover::after { content: '♪'; color: var(--text-faint); font-size: 14px; }
+  .cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cover-sm { width: 40px; height: 40px; }
+  .cover-xs { width: 30px; height: 30px; border-radius: 7px; }
+
   .rail-list { display: flex; flex-direction: column; margin-top: 12px; }
   .rail-item {
-    display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: baseline;
+    display: grid; grid-template-columns: auto 1fr; gap: 11px; align-items: center;
     padding: 9px 0; border-top: 1px solid var(--border);
   }
   .rail-item:first-child { border-top: none; padding-top: 4px; }
+  .rail-body { min-width: 0; }
   .rail-title {
-    font-size: 13.5px; min-width: 0;
+    display: block; font-size: 13.5px; min-width: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .rail-title a { color: var(--text); text-decoration: none; }
   .rail-title a:hover { color: var(--accent); text-decoration: underline; }
-  .rail-meta { font-size: 11.5px; color: var(--text-faint); white-space: nowrap; }
+  .rail-meta { display: block; margin-top: 2px; font-size: 11.5px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rail-meta .auto-tag { color: var(--accent); font-weight: 600; }
   .rail-foot { margin-top: 14px; font-size: 13px; }
   .rail-foot a { color: var(--accent); text-decoration: none; font-weight: 600; }
   .rail-foot a:hover { text-decoration: underline; }
@@ -611,7 +628,7 @@ ${fontsAndReset()}
 
   .top-list { margin-top: 14px; }
   .top-row {
-    display: grid; grid-template-columns: 26px 1fr auto; gap: 12px; align-items: center;
+    display: grid; grid-template-columns: 20px auto 1fr auto; gap: 12px; align-items: center;
     padding: 10px 0; border-top: 1px solid var(--border); font-size: 14px;
   }
   .top-row:first-child { border-top: none; }
@@ -625,6 +642,8 @@ ${fontsAndReset()}
   .top-plays { font-size: 12.5px; color: var(--text-muted); white-space: nowrap; }
   .log-detail a { color: var(--text); text-decoration: none; }
   .log-detail a:hover { color: var(--accent); text-decoration: underline; }
+  .hist-song { display: flex; align-items: center; gap: 11px; min-width: 0; }
+  .hist-song .hist-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
   .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
   .tab {
@@ -817,9 +836,9 @@ function historyPage({ guild, history, top, stats, autoplay, bot }) {
     .map(
       (h) => `<tr>
         <td class="log-time">${escapeHtml(formatTime(h.played_at))}</td>
-        <td class="log-detail">${
+        <td class="log-detail"><span class="hist-song">${coverThumb(h.thumbnail, 'cover-xs')}<span class="hist-name">${
           h.url ? `<a href="${escapeHtml(h.url)}" target="_blank" rel="noopener">${escapeHtml(h.title)}</a>` : escapeHtml(h.title)
-        }</td>
+        }</span></span></td>
         <td class="log-actor">${escapeHtml(formatDuration(h.duration))}</td>
         <td class="log-actor">${h.auto ? '<span class="lvl info">อัตโนมัติ</span>' : escapeHtml(h.requested_by || '—')}</td>
       </tr>`,
@@ -830,6 +849,7 @@ function historyPage({ guild, history, top, stats, autoplay, bot }) {
     .map(
       (t, i) => `<div class="top-row">
         <span class="top-rank">${i + 1}</span>
+        ${coverThumb(t.thumbnail, 'cover-xs')}
         <span class="top-title">${
           t.url ? `<a href="${escapeHtml(t.url)}" target="_blank" rel="noopener">${escapeHtml(t.title)}</a>` : escapeHtml(t.title)
         }</span>
@@ -1075,10 +1095,13 @@ function historyRail(guild, recent) {
   const items = recent
     .map(
       (h) => `<div class="rail-item">
-        <span class="rail-title">${
-          h.url ? `<a href="${escapeHtml(h.url)}" target="_blank" rel="noopener">${escapeHtml(h.title)}</a>` : escapeHtml(h.title)
-        }</span>
-        <span class="rail-meta">${h.auto ? 'อัตโนมัติ' : escapeHtml(h.requested_by || '—')}</span>
+        ${coverThumb(h.thumbnail, 'cover-sm')}
+        <span class="rail-body">
+          <span class="rail-title">${
+            h.url ? `<a href="${escapeHtml(h.url)}" target="_blank" rel="noopener">${escapeHtml(h.title)}</a>` : escapeHtml(h.title)
+          }</span>
+          <span class="rail-meta">${h.auto ? '<span class="auto-tag">เล่นต่อเนื่องอัตโนมัติ</span>' : escapeHtml(h.requested_by || '—')}</span>
+        </span>
       </div>`,
     )
     .join('');

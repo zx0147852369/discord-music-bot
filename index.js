@@ -85,6 +85,7 @@ client.distube
       duration: song.duration,
       requestedBy: song.user?.username || null,
       auto,
+      thumbnail: song.thumbnail || null,
     });
     queue.textChannel?.send({
       embeds: [

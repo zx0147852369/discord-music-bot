@@ -64,6 +64,12 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_history_url ON song_history (guild_id, url);
 `);
 
+// Cover art, added after the table shipped so the dashboard can show each song's real
+// artwork. Older rows keep it NULL and fall back to a placeholder.
+if (!db.prepare('PRAGMA table_info(song_history)').all().some((c) => c.name === 'thumbnail')) {
+  db.exec('ALTER TABLE song_history ADD COLUMN thumbnail TEXT');
+}
+
 // A hand-picked set of songs a server wants looped forever. When this holds anything, the
 // "keep playing" feature rotates through only these instead of hunting for new tracks.
 db.exec(`
@@ -82,14 +88,14 @@ db.exec(`
 const MAX_HISTORY = 5000;
 
 const insertHistoryStmt = db.prepare(`
-  INSERT INTO song_history (guild_id, played_at, title, url, source, duration, requested_by, auto)
-  VALUES (@guild_id, @played_at, @title, @url, @source, @duration, @requested_by, @auto)
+  INSERT INTO song_history (guild_id, played_at, title, url, source, duration, requested_by, auto, thumbnail)
+  VALUES (@guild_id, @played_at, @title, @url, @source, @duration, @requested_by, @auto, @thumbnail)
 `);
 const pruneHistoryStmt = db.prepare('DELETE FROM song_history WHERE id <= (SELECT MAX(id) FROM song_history) - ?');
 const recentHistoryStmt = db.prepare('SELECT * FROM song_history WHERE guild_id = ? ORDER BY id DESC LIMIT ?');
 const recentUrlsStmt = db.prepare('SELECT url FROM song_history WHERE guild_id = ? AND url IS NOT NULL ORDER BY id DESC LIMIT ?');
 const topSongsStmt = db.prepare(`
-  SELECT title, url, source, COUNT(*) AS plays, MAX(played_at) AS last_played
+  SELECT title, url, source, MAX(thumbnail) AS thumbnail, COUNT(*) AS plays, MAX(played_at) AS last_played
   FROM song_history WHERE guild_id = ?
   GROUP BY COALESCE(url, title)
   ORDER BY plays DESC, last_played DESC
@@ -108,7 +114,7 @@ const randomPastStmt = db.prepare(`
 
 let historySincePrune = 0;
 
-function recordSongPlay({ guildId, title, url = null, source = null, duration = null, requestedBy = null, auto = false }) {
+function recordSongPlay({ guildId, title, url = null, source = null, duration = null, requestedBy = null, auto = false, thumbnail = null }) {
   try {
     insertHistoryStmt.run({
       guild_id: guildId,
@@ -119,6 +125,7 @@ function recordSongPlay({ guildId, title, url = null, source = null, duration = 
       duration: duration == null ? null : Math.round(duration),
       requested_by: requestedBy,
       auto: auto ? 1 : 0,
+      thumbnail: thumbnail || null,
     });
     if (++historySincePrune >= 200) {
       historySincePrune = 0;
