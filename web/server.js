@@ -23,6 +23,7 @@ const oauth = require('../lib/discordOAuth');
 const {
   loginPage,
   registerPage,
+  accountPage,
   guildListPage,
   guildSettingsPage,
   logsPage,
@@ -54,7 +55,7 @@ function recordFailedAttempt(ip) {
   loginAttempts.set(ip, entry);
 }
 
-function startDashboard(client) {
+function startDashboard(botHub) {
   // Bootstrap an admin account from DASHBOARD_PASSWORD so a freshly upgraded deployment is
   // never locked out. After that, everyone signs in with their own account.
   accounts.seedAdmin(process.env.DASHBOARD_PASSWORD);
@@ -88,6 +89,9 @@ function startDashboard(client) {
     const user = currentUser(req);
     if (!user) return res.redirect('/login');
     req.user = user;
+    // Every authed request acts through the user's chosen bot: their own bot if it's online,
+    // otherwise the shared system bot.
+    req.botClient = botHub.clientForUser(user) || botHub.getSystemClient();
     return next();
   }
 
@@ -171,10 +175,53 @@ function startDashboard(client) {
     req.session.destroy(() => res.redirect('/login'));
   });
 
-  function botInfo() {
+  // ---- Account & bot mode ----
+  app.get('/account', requireAuth, (req, res) => {
+    res.send(
+      accountPage({
+        user: req.user,
+        bot: botInfo(req),
+        guild: menuGuild(req),
+        saved: req.query.saved === '1',
+        error: req.query.error || null,
+      }),
+    );
+  });
+
+  app.post('/account/mode', requireAuth, (req, res) => {
+    accounts.setBotMode(req.user.id, req.body.bot_mode === 'own' ? 'own' : 'system');
+    if (req.body.bot_mode !== 'own') botHub.disconnectUserBot(req.user.id);
+    res.redirect('/account?saved=1');
+  });
+
+  app.post('/account/bot-token', requireAuth, async (req, res) => {
+    const token = String(req.body.token || '').trim();
+    if (!token) return res.redirect('/account?error=' + encodeURIComponent('กรุณาวางโทเคนบอท'));
+    try {
+      const botUser = await oauth.validateBotToken(token);
+      accounts.setBotMode(req.user.id, 'own');
+      accounts.setOwnBotToken(req.user.id, token, { status: 'connecting', username: botUser.username });
+      const result = await botHub.connectUserBot(req.user.id, token);
+      accounts.updateOwnBotStatus(req.user.id, result.ok ? 'connected' : result.error || 'error', botUser.username);
+      logEvent({ type: 'own_bot_connected', actor: req.user.username, detail: `${botUser.username} · ${result.ok ? 'ok' : result.error}` });
+      return res.redirect('/account?saved=1');
+    } catch (e) {
+      logEvent({ level: 'warn', type: 'own_bot_failed', actor: req.user.username, detail: e.message });
+      return res.redirect('/account?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/account/bot-disconnect', requireAuth, (req, res) => {
+    botHub.disconnectUserBot(req.user.id);
+    accounts.setOwnBotToken(req.user.id, null, { status: null, username: null });
+    logEvent({ type: 'own_bot_disconnected', actor: req.user.username });
+    res.redirect('/account?saved=1');
+  });
+
+  function botInfo(req) {
     return {
-      name: client.user?.username || 'Music Bot',
-      avatarUrl: client.user?.displayAvatarURL({ size: 64 }) || null,
+      name: req.botClient?.user?.username || 'Music Bot',
+      avatarUrl: req.botClient?.user?.displayAvatarURL({ size: 64 }) || null,
     };
   }
 
@@ -189,25 +236,34 @@ function startDashboard(client) {
       req.session.lastGuildId = guild.id;
       return { id: guild.id, name: guild.name };
     }
-    const remembered = client.guilds.cache.get(req.session.lastGuildId);
+    const remembered = req.botClient.guilds.cache.get(req.session.lastGuildId);
     return remembered ? { id: remembered.id, name: remembered.name } : null;
   }
 
   app.get('/', requireAuth, (req, res) => {
-    const guilds = [...client.guilds.cache.values()]
-      .map((g) => ({
-        id: g.id,
-        name: g.name,
-        memberCount: g.memberCount,
-        iconUrl: g.iconURL({ size: 128 }) || null,
-        playing: client.distube.getQueue(g.id) ? true : false,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-    res.send(guildListPage({ guilds, bot: botInfo(), guild: menuGuild(req) }));
+    // Only the servers the user's active bot is in — natural per-user isolation for own-bot
+    // users, and the system bot's servers for everyone else.
+    const cache = req.botClient?.guilds?.cache;
+    const guilds = cache
+      ? [...cache.values()]
+          .map((g) => ({
+            id: g.id,
+            name: g.name,
+            memberCount: g.memberCount,
+            iconUrl: g.iconURL({ size: 128 }) || null,
+            playing: req.botClient.distube.getQueue(g.id) ? true : false,
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name))
+      : [];
+    const hint =
+      !guilds.length && req.user.bot_mode === 'own' && !botHub.isUserBotOnline(req.user.id)
+        ? 'ยังไม่ได้เชื่อมบอทของคุณ — ไปที่ “บัญชีของฉัน” เพื่อเชื่อมบอท แล้วเชิญบอทเข้าเซิร์ฟเวอร์'
+        : null;
+    res.send(guildListPage({ guilds, bot: botInfo(req), guild: menuGuild(req), hint }));
   });
 
   app.get('/guild/:id', requireAuth, (req, res) => {
-    const guild = client.guilds.cache.get(req.params.id);
+    const guild = req.botClient.guilds.cache.get(req.params.id);
     if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
 
     const textChannels = guild.channels.cache
@@ -230,9 +286,9 @@ function startDashboard(client) {
         textChannels,
         roles,
         voiceChannels,
-        allCommands: [...client.commands.keys()],
+        allCommands: [...req.botClient.commands.keys()],
         saved: req.query.saved === '1',
-        bot: botInfo(),
+        bot: botInfo(req),
         recentHistory: getSongHistory(guild.id, 12),
         loopSongs: getLoopSongs(guild.id),
         audioProfiles: AUDIO_PROFILES,
@@ -241,10 +297,10 @@ function startDashboard(client) {
   });
 
   app.post('/guild/:id', requireAuth, (req, res) => {
-    const guild = client.guilds.cache.get(req.params.id);
+    const guild = req.botClient.guilds.cache.get(req.params.id);
     if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
 
-    const allCommands = [...client.commands.keys()];
+    const allCommands = [...req.botClient.commands.keys()];
     const enabled = [].concat(req.body.enabled_commands || []);
     const disabled_commands = allCommands.filter((name) => !enabled.includes(name));
 
@@ -265,7 +321,7 @@ function startDashboard(client) {
     });
     // Without this the new volume would only take effect the next time the bot joins a
     // voice channel, which makes the slider look broken while music is playing.
-    const queue = client.distube.getQueue(guild.id);
+    const queue = req.botClient.distube.getQueue(guild.id);
     if (queue) queue.setVolume(volume);
     // Apply a changed sound preset to what's playing right now. Re-rendering the stream
     // (seek to the current position) is what makes ffmpeg pick up the new filter chain.
@@ -290,7 +346,7 @@ function startDashboard(client) {
   });
 
   app.get('/guild/:id/status.json', requireAuth, (req, res) => {
-    const queue = client.distube.getQueue(req.params.id);
+    const queue = req.botClient.distube.getQueue(req.params.id);
     if (!queue) return res.json({ playing: false });
     const song = queue.songs[0];
     res.json({
@@ -312,13 +368,13 @@ function startDashboard(client) {
   // Queue a song straight from the dashboard. The bot joins the chosen voice channel (or the
   // one it is already in) and announces the song in the guild's configured text channel.
   app.post('/guild/:id/play', requireAuth, express.json(), async (req, res) => {
-    const guild = client.guilds.cache.get(req.params.id);
+    const guild = req.botClient.guilds.cache.get(req.params.id);
     if (!guild) return res.status(404).json({ error: 'ไม่พบเซิร์ฟเวอร์นี้' });
 
     const query = String(req.body.query || '').trim();
     if (!query) return res.status(400).json({ error: 'กรุณาใส่ชื่อเพลงหรือลิงก์' });
 
-    const existingQueue = client.distube.getQueue(guild.id);
+    const existingQueue = req.botClient.distube.getQueue(guild.id);
     const channelId = req.body.channelId || existingQueue?.voice.channel?.id;
     const voiceChannel = channelId && guild.channels.cache.get(channelId);
     if (!voiceChannel?.isVoiceBased()) {
@@ -336,7 +392,7 @@ function startDashboard(client) {
         (settings.announce_channel_id && guild.channels.cache.get(settings.announce_channel_id)) ||
         guild.channels.cache.find((c) => c.type === ChannelType.GuildText && c.viewable);
 
-      const song = await resolveSong(client.distube, query, { member: me });
+      const song = await resolveSong(req.botClient.distube, query, { member: me });
       if (!song) return res.status(404).json({ error: `ไม่พบเพลง: ${query}` });
 
       logEvent({
@@ -345,7 +401,7 @@ function startDashboard(client) {
         actor: req.ip,
         detail: `${song.name} → ${voiceChannel.name}`,
       });
-      await client.distube.play(voiceChannel, song, { member: me, textChannel });
+      await req.botClient.distube.play(voiceChannel, song, { member: me, textChannel });
       res.json({ ok: true, title: song.name });
     } catch (err) {
       console.error('Dashboard play failed:', err);
@@ -361,7 +417,7 @@ function startDashboard(client) {
   });
 
   app.post('/guild/:id/control', requireAuth, express.json(), async (req, res) => {
-    const queue = client.distube.getQueue(req.params.id);
+    const queue = req.botClient.distube.getQueue(req.params.id);
     if (!queue) return res.status(400).json({ error: 'ตอนนี้ไม่มีเพลงเล่นอยู่' });
 
     try {
@@ -407,7 +463,7 @@ function startDashboard(client) {
       logsPage({
         events: getEvents({ guildId: null, level, limit: 300 }),
         level,
-        bot: botInfo(),
+        bot: botInfo(req),
         scope: { title: 'บันทึกระบบ', subtitle: 'เหตุการณ์ที่ไม่ผูกกับเซิร์ฟเวอร์ใดเซิร์ฟเวอร์หนึ่ง' },
         basePath: '/logs',
         tab: 'events',
@@ -424,7 +480,7 @@ function startDashboard(client) {
       consoleLogsPage({
         lines: getConsoleLogs({ level, limit: 300 }),
         level,
-        bot: botInfo(),
+        bot: botInfo(req),
         guild: menuGuild(req),
       }),
     );
@@ -440,29 +496,29 @@ function startDashboard(client) {
    * something together: idle CPU with ten rooms playing reads very differently from idle
    * CPU with none.
    */
-  function resourceSnapshot() {
+  function resourceSnapshot(req) {
     const stats = snapshot();
     stats.bot = {
-      guilds: client.guilds.cache.size,
-      playing: [...client.guilds.cache.keys()].filter((id) => client.distube.getQueue(id)).length,
-      voice: client.distube.voices.size,
-      ping: Number.isFinite(client.ws.ping) ? Math.max(0, Math.round(client.ws.ping)) : null,
+      guilds: req.botClient.guilds.cache.size,
+      playing: [...req.botClient.guilds.cache.keys()].filter((id) => req.botClient.distube.getQueue(id)).length,
+      voice: req.botClient.distube.voices.size,
+      ping: Number.isFinite(req.botClient.ws.ping) ? Math.max(0, Math.round(req.botClient.ws.ping)) : null,
     };
     return stats;
   }
 
   app.get('/system', requireAuth, (req, res) => {
-    res.send(systemPage({ stats: resourceSnapshot(), bot: botInfo(), guild: menuGuild(req) }));
+    res.send(systemPage({ stats: resourceSnapshot(req), bot: botInfo(req), guild: menuGuild(req) }));
   });
 
   app.get('/system.json', requireAuth, (req, res) => {
-    res.json({ fields: systemFields(resourceSnapshot()) });
+    res.json({ fields: systemFields(resourceSnapshot(req)) });
   });
 
   // Add a song to the server's loop list. A history pick already carries its metadata (no
   // network); anything typed is resolved through yt-dlp so we store a real playable URL.
   app.post('/guild/:id/loop/add', requireAuth, async (req, res) => {
-    const guild = client.guilds.cache.get(req.params.id);
+    const guild = req.botClient.guilds.cache.get(req.params.id);
     if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
     const back = `/guild/${guild.id}#loop`;
     const fromHistory = (req.body.url || '').trim();
@@ -471,7 +527,7 @@ function startDashboard(client) {
     try {
       let song = fromHistory ? getHistorySongByUrl(guild.id, fromHistory) : null;
       if (!song && (query || fromHistory)) {
-        const resolved = await resolveSong(client.distube, query || fromHistory, { member: guild.members.me });
+        const resolved = await resolveSong(req.botClient.distube, query || fromHistory, { member: guild.members.me });
         const one = resolved?.songs ? resolved.songs[0] : resolved; // a playlist → just its first track
         if (one?.url) song = { url: one.url, title: one.name, source: one.source, duration: one.duration };
       }
@@ -493,7 +549,7 @@ function startDashboard(client) {
   });
 
   app.post('/guild/:id/loop/remove', requireAuth, (req, res) => {
-    const guild = client.guilds.cache.get(req.params.id);
+    const guild = req.botClient.guilds.cache.get(req.params.id);
     if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
     if (req.body.url) {
       removeLoopSong(guild.id, req.body.url);
@@ -507,13 +563,13 @@ function startDashboard(client) {
   // song costs a yt-dlp call, so only the first is awaited — the rest stream in in the
   // background while the queue plays.
   app.post('/guild/:id/loop/play', requireAuth, express.json(), async (req, res) => {
-    const guild = client.guilds.cache.get(req.params.id);
+    const guild = req.botClient.guilds.cache.get(req.params.id);
     if (!guild) return res.status(404).json({ error: 'ไม่พบเซิร์ฟเวอร์นี้' });
 
     const loop = getLoopSongs(guild.id);
     if (!loop.length) return res.status(400).json({ error: 'ยังไม่มีเพลงในเพลย์ลิสต์วนซ้ำ' });
 
-    const existingQueue = client.distube.getQueue(guild.id);
+    const existingQueue = req.botClient.distube.getQueue(guild.id);
     const channelId = req.body.channelId || existingQueue?.voice.channel?.id;
     const voiceChannel = channelId && guild.channels.cache.get(channelId);
     if (!voiceChannel?.isVoiceBased()) return res.status(400).json({ error: 'กรุณาเลือกห้องเสียง' });
@@ -533,11 +589,11 @@ function startDashboard(client) {
       // line for each of them — filling a whole loop list would otherwise spam the channel.
       const silent = { member: me, metadata: { silent: true } };
 
-      const first = await resolveSong(client.distube, loop[0].url, silent);
+      const first = await resolveSong(req.botClient.distube, loop[0].url, silent);
       if (!first) return res.status(502).json({ error: 'เล่นเพลงแรกในลิสต์ไม่สำเร็จ' });
-      await client.distube.play(voiceChannel, first, { member: me, textChannel, metadata: { silent: true } });
+      await req.botClient.distube.play(voiceChannel, first, { member: me, textChannel, metadata: { silent: true } });
 
-      const queue = client.distube.getQueue(guild.id);
+      const queue = req.botClient.distube.getQueue(guild.id);
       if (queue) queue.setRepeatMode(2); // 2 = repeat the whole queue
 
       logEvent({ guildId: guild.id, type: 'loop_play', actor: req.ip, detail: `${loop.length} เพลง → ${voiceChannel.name}` });
@@ -545,10 +601,10 @@ function startDashboard(client) {
 
       // Queue the remaining songs after replying, so the button returns as soon as sound starts.
       for (const s of loop.slice(1)) {
-        if (!client.distube.getQueue(guild.id)) break; // stopped while we were loading
+        if (!req.botClient.distube.getQueue(guild.id)) break; // stopped while we were loading
         try {
-          const song = await resolveSong(client.distube, s.url, silent);
-          if (song) await client.distube.play(voiceChannel, song, { member: me, textChannel, metadata: { silent: true } });
+          const song = await resolveSong(req.botClient.distube, s.url, silent);
+          if (song) await req.botClient.distube.play(voiceChannel, song, { member: me, textChannel, metadata: { silent: true } });
         } catch (e) {
           console.warn(`Loop queue add failed for ${s.url}:`, e.message);
         }
@@ -561,7 +617,7 @@ function startDashboard(client) {
   });
 
   app.get('/guild/:id/history', requireAuth, (req, res) => {
-    const guild = client.guilds.cache.get(req.params.id);
+    const guild = req.botClient.guilds.cache.get(req.params.id);
     if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
     menuGuild(req, guild); // remember it for the system-wide pages
     res.send(
@@ -571,20 +627,20 @@ function startDashboard(client) {
         top: getTopSongs(guild.id, 10),
         stats: getHistoryStats(guild.id),
         autoplay: getGuildSettings(guild.id).autoplay,
-        bot: botInfo(),
+        bot: botInfo(req),
       }),
     );
   });
 
   app.get('/guild/:id/logs', requireAuth, (req, res) => {
-    const guild = client.guilds.cache.get(req.params.id);
+    const guild = req.botClient.guilds.cache.get(req.params.id);
     if (!guild) return res.status(404).send('ไม่พบเซิร์ฟเวอร์นี้');
     const level = ['info', 'warn', 'error'].includes(req.query.level) ? req.query.level : null;
     res.send(
       logsPage({
         events: getEvents({ guildId: guild.id, level, limit: 300 }),
         level,
-        bot: botInfo(),
+        bot: botInfo(req),
         scope: { title: `บันทึกของ ${guild.name}`, subtitle: 'ประวัติการเล่นเพลงและการใช้คำสั่ง' },
         basePath: `/guild/${guild.id}/logs`,
         active: 'guildlogs',

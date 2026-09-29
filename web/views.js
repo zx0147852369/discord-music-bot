@@ -47,6 +47,7 @@ const ICONS = {
   stop: '<svg viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>',
   server: '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="7" rx="2" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="13" width="18" height="7" rx="2" stroke="currentColor" stroke-width="1.6"/><circle cx="7" cy="7.5" r="1.1" fill="currentColor"/><circle cx="7" cy="16.5" r="1.1" fill="currentColor"/></svg>',
   log: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 3.5h9l4 4V20a.5.5 0 0 1-.5.5h-12A.5.5 0 0 1 6 20V4a.5.5 0 0 1 .5-.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14.5 3.7V8h4.3M9 12.5h6M9 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  user: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.6" stroke="currentColor" stroke-width="1.6"/><path d="M5.5 19.5a6.5 6.5 0 0 1 13 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
 };
 
 // Human-readable labels for the event types written by the bot and dashboard.
@@ -414,6 +415,22 @@ ${fontsAndReset()}
   }
   .save-bar button.primary { margin-top: 0; flex-shrink: 0; }
   .save-hint { font-size: 12.5px; color: var(--text-faint); }
+
+  /* Bot-mode chooser (account page) */
+  .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+  @media (max-width: 560px) { .mode-grid { grid-template-columns: 1fr; } }
+  .mode-card { position: relative; display: flex; flex-direction: column; gap: 4px; cursor: pointer;
+    padding: 18px; border: 1.5px solid var(--border-strong); border-radius: 14px; background: var(--surface-2);
+    transition: border-color .15s ease, background .15s ease, box-shadow .2s ease; }
+  .mode-card:hover { border-color: var(--accent); }
+  .mode-card input { position: absolute; opacity: 0; pointer-events: none; }
+  .mode-card.selected { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 8px 22px -12px rgba(51,82,204,.4); }
+  .mode-ic { width: 38px; height: 38px; border-radius: 11px; background: var(--surface); color: var(--accent);
+    display: grid; place-items: center; margin-bottom: 8px; }
+  .mode-ic svg { width: 20px; height: 20px; }
+  .mode-card.selected .mode-ic { background: var(--accent); color: #fff; }
+  .mode-title { font-size: 15px; font-weight: 800; }
+  .mode-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
   @media (max-width: 560px) { .save-bar { flex-direction: column; align-items: stretch; } .save-hint { text-align: center; } }
 
   .guild-list { display: grid; gap: 10px; margin-top: 4px; }
@@ -1131,6 +1148,7 @@ function sidebar({ bot, active, guild }) {
         : ''
     }
     <div class="nav-group">ระบบ</div>
+    ${item('account', '/account', ICONS.user, 'บัญชีของฉัน')}
     ${item('logs', '/logs', ICONS.log, 'บันทึกระบบ')}
     ${item('console', '/logs/console', ICONS.search, 'บันทึกบอท')}
     ${item('system', '/system', ICONS.server, 'ทรัพยากรเครื่อง')}
@@ -1140,7 +1158,7 @@ function sidebar({ bot, active, guild }) {
 </aside>`;
 }
 
-function guildListPage({ guilds, bot, guild }) {
+function guildListPage({ guilds, bot, guild, hint }) {
   const items = guilds
     .map(
       (g) => `<a href="/guild/${g.id}" class="guild-row">
@@ -1155,6 +1173,9 @@ function guildListPage({ guilds, bot, guild }) {
       </a>`,
     )
     .join('');
+  const empty = hint
+    ? `<div class="card"><div class="empty-state">${escapeHtml(hint)}<div style="margin-top:12px;"><a href="/account" class="primary" style="display:inline-block;text-decoration:none;padding:10px 18px;border-radius:10px;">ไปที่บัญชีของฉัน</a></div></div></div>`
+    : '<div class="card"><div class="empty-state">บอทยังไม่ได้อยู่ในเซิร์ฟเวอร์ไหนเลย</div></div>';
   return layout({
     title: 'เลือกเซิร์ฟเวอร์ - ' + (bot?.name || 'Music Bot'),
     nav: { bot, active: 'servers', guild },
@@ -1162,7 +1183,7 @@ function guildListPage({ guilds, bot, guild }) {
 <main>
   <h1 class="page-title">เซิร์ฟเวอร์ของคุณ</h1>
   <p class="page-sub">เลือกเซิร์ฟเวอร์ที่ต้องการตั้งค่าบอท</p>
-  <div class="guild-list">${items || '<div class="card"><div class="empty-state">บอทยังไม่ได้อยู่ในเซิร์ฟเวอร์ไหนเลย</div></div>'}</div>
+  <div class="guild-list">${items || empty}</div>
 </main>`,
   });
 }
@@ -1893,9 +1914,104 @@ setInterval(refreshSystem, 5000);
   });
 }
 
+function accountPage({ user, bot, guild, saved, error }) {
+  const av = user.avatar
+    ? `<img src="${escapeHtml(user.avatar)}" alt="" style="width:56px;height:56px;border-radius:50%;">`
+    : `<div class="avatar-fallback" style="width:56px;height:56px;border-radius:50%;font-size:22px;">${escapeHtml(initials(user.username))}</div>`;
+  const isOwn = user.bot_mode === 'own';
+  const status = user.own_bot_status;
+  const statusBadge = !user.hasOwnToken
+    ? '<span class="lvl warn">ยังไม่ได้เชื่อมบอท</span>'
+    : status === 'connected'
+      ? `<span class="lvl info" style="background:var(--success-soft);color:var(--success);">เชื่อมต่อแล้ว${user.own_bot_username ? ' · ' + escapeHtml(user.own_bot_username) : ''}</span>`
+      : `<span class="lvl error">${escapeHtml(status || 'ยังไม่เชื่อมต่อ')}</span>`;
+
+  const modeCard = (mode, icon, title, desc) => `
+    <label class="mode-card${user.bot_mode === mode ? ' selected' : ''}">
+      <input type="radio" name="bot_mode" value="${mode}" ${user.bot_mode === mode ? 'checked' : ''}>
+      <span class="mode-ic">${icon}</span>
+      <span class="mode-title">${escapeHtml(title)}</span>
+      <span class="mode-desc">${escapeHtml(desc)}</span>
+    </label>`;
+
+  return layout({
+    title: `บัญชีของฉัน - ${bot?.name || 'Music Bot'}`,
+    nav: { bot, active: 'account', guild },
+    toast: saved ? { msg: 'บันทึกแล้ว', type: 'ok' } : error ? { msg: error, type: 'err' } : null,
+    body: `
+<main style="max-width:820px;">
+  <h1 class="page-title">บัญชีของฉัน</h1>
+  <p class="page-sub">จัดการบัญชีและเลือกว่าจะใช้บอทของระบบ หรือบอทของคุณเอง</p>
+
+  <div class="card">
+    <div style="display:flex; align-items:center; gap:16px;">
+      ${av}
+      <div style="min-width:0;">
+        <div style="font-size:17px; font-weight:800;">${escapeHtml(user.username)}</div>
+        <div style="font-size:13px; color:var(--text-muted); margin-top:2px;">
+          ${user.email ? escapeHtml(user.email) + ' · ' : ''}${user.discord_id ? 'เชื่อม Discord แล้ว · ' : ''}${user.role === 'admin' ? '<span class="lvl info">แอดมิน</span>' : 'สมาชิก'}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form method="POST" action="/account/mode">
+    <div class="card">
+      <div class="section-head">
+        <div class="section-icon">${ICONS.toggle}</div>
+        <h2 class="section-title">โหมดบอท</h2>
+      </div>
+      <p class="section-desc">เลือกได้ 2 แบบ — เปลี่ยนได้ทุกเมื่อ</p>
+      <div class="mode-grid">
+        ${modeCard('system', ICONS.server, 'ใช้บอทของระบบ', 'ใช้บอทกลางที่ระบบเตรียมไว้ให้ แค่เชิญบอทเข้าเซิร์ฟเวอร์ของคุณ ไม่ต้องตั้งค่าอะไรเพิ่ม')}
+        ${modeCard('own', ICONS.user, 'ใช้บอทของฉันเอง', 'เอาโทเคนบอท Discord ของคุณมาเชื่อม ระบบจะรันบอทของคุณให้ ควบคุมได้จากที่นี่')}
+      </div>
+      <div class="save-bar" style="margin-top:18px;">
+        <button type="submit" class="primary">บันทึกโหมด</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="card" id="ownbot" style="${isOwn ? '' : 'opacity:.6;'}">
+    <div class="section-head">
+      <div class="section-icon">${ICONS.user}</div>
+      <h2 class="section-title">บอทของฉันเอง ${statusBadge}</h2>
+    </div>
+    <p class="section-desc">
+      วางโทเคนบอทจาก <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Discord Developer Portal</a>
+      (Bot → Reset Token) ระบบจะตรวจสอบและรันบอทให้ทันที — โทเคนถูกเข้ารหัสก่อนเก็บ และจะไม่แสดงให้เห็นอีก
+      ${isOwn ? '' : '<br><b style="color:var(--warning)">เลือกโหมด “ใช้บอทของฉันเอง” ด้านบนก่อน แล้วบันทึก</b>'}
+    </p>
+    <form method="POST" action="/account/bot-token" class="loop-add" style="margin-top:14px;">
+      <input type="password" name="token" placeholder="วางโทเคนบอทที่นี่" autocomplete="off" ${isOwn ? '' : 'disabled'}>
+      <button type="submit" class="primary" ${isOwn ? '' : 'disabled'}>เชื่อมต่อ</button>
+    </form>
+    ${
+      user.hasOwnToken
+        ? `<form method="POST" action="/account/bot-disconnect" style="margin-top:12px;">
+             <button type="submit" class="tbtn danger">ยกเลิกการเชื่อมต่อบอท</button>
+           </form>`
+        : ''
+    }
+  </div>
+</main>
+<script>
+  document.querySelectorAll('.mode-card input[name="bot_mode"]').forEach((r) => {
+    r.addEventListener('change', () => {
+      document.querySelectorAll('.mode-card').forEach((c) => c.classList.toggle('selected', c.contains(r) && r.checked));
+      document.querySelectorAll('.mode-card input[name="bot_mode"]').forEach((x) => {
+        x.closest('.mode-card').classList.toggle('selected', x.checked);
+      });
+    });
+  });
+</script>`,
+  });
+}
+
 module.exports = {
   loginPage,
   registerPage,
+  accountPage,
   guildListPage,
   guildSettingsPage,
   logsPage,
