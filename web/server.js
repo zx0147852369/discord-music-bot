@@ -89,9 +89,10 @@ function startDashboard(botHub) {
     const user = currentUser(req);
     if (!user) return res.redirect('/login');
     req.user = user;
-    // Every authed request acts through the user's chosen bot: their own bot if it's online,
-    // otherwise the shared system bot.
-    req.botClient = botHub.clientForUser(user) || botHub.getSystemClient();
+    // Act through the user's chosen bot. clientForUser already returns the system bot for
+    // system-mode users and only the user's own bot (or null) for own-mode users — do NOT add
+    // a system-bot fallback here, or an own-mode user with no bot would see the system servers.
+    req.botClient = botHub.clientForUser(user);
     return next();
   }
 
