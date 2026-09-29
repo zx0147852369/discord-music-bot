@@ -85,6 +85,69 @@ db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_loop_guild_url ON autoplay_loop (guild_id, url);
 `);
 
+// What each bot was playing, so it can rejoin and resume after a restart/redeploy. One row
+// per guild; updated a few seconds apart while playing and cleared when the queue ends.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS playback_state (
+    guild_id TEXT PRIMARY KEY,
+    song_url TEXT NOT NULL,
+    song_title TEXT,
+    position INTEGER NOT NULL DEFAULT 0,
+    voice_channel_id TEXT NOT NULL,
+    text_channel_id TEXT,
+    volume INTEGER NOT NULL DEFAULT 50,
+    queue_json TEXT NOT NULL DEFAULT '[]',
+    updated_at INTEGER NOT NULL
+  );
+`);
+
+const savePlaybackStmt = db.prepare(`
+  INSERT INTO playback_state (guild_id, song_url, song_title, position, voice_channel_id, text_channel_id, volume, queue_json, updated_at)
+  VALUES (@guild_id, @song_url, @song_title, @position, @voice_channel_id, @text_channel_id, @volume, @queue_json, @updated_at)
+  ON CONFLICT(guild_id) DO UPDATE SET
+    song_url = excluded.song_url, song_title = excluded.song_title, position = excluded.position,
+    voice_channel_id = excluded.voice_channel_id, text_channel_id = excluded.text_channel_id,
+    volume = excluded.volume, queue_json = excluded.queue_json, updated_at = excluded.updated_at
+`);
+const updatePositionStmt = db.prepare('UPDATE playback_state SET position = ?, updated_at = ? WHERE guild_id = ?');
+const clearPlaybackStmt = db.prepare('DELETE FROM playback_state WHERE guild_id = ?');
+const recentPlaybackStmt = db.prepare('SELECT * FROM playback_state WHERE updated_at >= ?');
+
+function savePlaybackState({ guildId, songUrl, songTitle = null, position = 0, voiceChannelId, textChannelId = null, volume = 50, queueUrls = [] }) {
+  if (!guildId || !songUrl || !voiceChannelId) return;
+  try {
+    savePlaybackStmt.run({
+      guild_id: guildId,
+      song_url: songUrl,
+      song_title: songTitle,
+      position: Math.max(0, Math.round(position)),
+      voice_channel_id: voiceChannelId,
+      text_channel_id: textChannelId,
+      volume,
+      queue_json: JSON.stringify((queueUrls || []).slice(0, 100)),
+      updated_at: Date.now(),
+    });
+  } catch (e) {
+    console.error('Failed to save playback state:', e.message);
+  }
+}
+const updatePlaybackPosition = (guildId, position) => {
+  try {
+    updatePositionStmt.run(Math.max(0, Math.round(position)), Date.now(), guildId);
+  } catch {
+    // non-critical
+  }
+};
+const clearPlaybackState = (guildId) => {
+  try {
+    clearPlaybackStmt.run(guildId);
+  } catch {
+    // non-critical
+  }
+};
+// Only states touched recently are worth resuming — an old one means the bot was down a while.
+const getPlaybackStates = (maxAgeMs = 30 * 60 * 1000) => recentPlaybackStmt.all(Date.now() - maxAgeMs);
+
 const MAX_HISTORY = 5000;
 
 const insertHistoryStmt = db.prepare(`
@@ -335,4 +398,8 @@ module.exports = {
   getLoopSongs,
   getLoopCount,
   getLoopNext,
+  savePlaybackState,
+  updatePlaybackPosition,
+  clearPlaybackState,
+  getPlaybackStates,
 };
