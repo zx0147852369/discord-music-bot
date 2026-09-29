@@ -18,8 +18,11 @@ const {
 const { resolveSong } = require('../lib/ytDlpPlugin');
 const { getConsoleLogs } = require('../lib/consoleCapture');
 const { PROFILES: AUDIO_PROFILES, isValidProfile, profileChain } = require('../lib/audioProfiles');
+const accounts = require('../lib/accounts');
+const oauth = require('../lib/discordOAuth');
 const {
   loginPage,
+  registerPage,
   guildListPage,
   guildSettingsPage,
   logsPage,
@@ -51,19 +54,14 @@ function recordFailedAttempt(ip) {
   loginAttempts.set(ip, entry);
 }
 
-function passwordMatches(input, expected) {
-  const a = Buffer.from(String(input));
-  const b = Buffer.from(String(expected));
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
-}
-
 function startDashboard(client) {
-  const password = process.env.DASHBOARD_PASSWORD;
-  if (!password) {
-    console.warn('DASHBOARD_PASSWORD is not set — skipping dashboard startup (set it in your .env / Railway variables to enable the web dashboard).');
-    return;
+  // Bootstrap an admin account from DASHBOARD_PASSWORD so a freshly upgraded deployment is
+  // never locked out. After that, everyone signs in with their own account.
+  accounts.seedAdmin(process.env.DASHBOARD_PASSWORD);
+  if (!process.env.DASHBOARD_PASSWORD && accounts.userCount() === 0) {
+    console.warn('No users yet and DASHBOARD_PASSWORD is not set — register the first account at /register (it becomes the admin).');
   }
+  const discordEnabled = oauth.isEnabled();
 
   const app = express();
   app.set('trust proxy', 1);
@@ -77,35 +75,96 @@ function startDashboard(client) {
         httpOnly: true,
         sameSite: 'lax',
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 12 * 60 * 60 * 1000,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       },
     }),
   );
 
-  function requireAuth(req, res, next) {
-    if (req.session.loggedIn) return next();
-    return res.redirect('/login');
+  function currentUser(req) {
+    return req.session.userId ? accounts.getUserById(req.session.userId) : null;
   }
 
+  function requireAuth(req, res, next) {
+    const user = currentUser(req);
+    if (!user) return res.redirect('/login');
+    req.user = user;
+    return next();
+  }
+
+  const redirectUri = (req) =>
+    (process.env.PUBLIC_URL ? process.env.PUBLIC_URL.replace(/\/$/, '') : `${req.protocol}://${req.get('host')}`) +
+    '/auth/discord/callback';
+
   app.get('/login', (req, res) => {
-    res.send(loginPage({ bot: botInfo() }));
+    if (currentUser(req)) return res.redirect('/');
+    res.send(loginPage({ discordEnabled, notice: req.query.registered ? 'สมัครสำเร็จ! เข้าสู่ระบบได้เลย' : null }));
   });
 
   app.post('/login', (req, res) => {
     const ip = req.ip;
     if (isLockedOut(ip)) {
       logEvent({ level: 'warn', type: 'login_locked', actor: ip });
-      return res.status(429).send(loginPage({ error: 'ลองผิดหลายครั้งเกินไป กรุณารอ 15 นาทีแล้วลองใหม่', bot: botInfo() }));
+      return res.status(429).send(loginPage({ discordEnabled, error: 'ลองผิดหลายครั้งเกินไป กรุณารอ 15 นาทีแล้วลองใหม่' }));
     }
-    if (passwordMatches(req.body.password || '', password)) {
+    const user = accounts.authenticate(req.body.login || '', req.body.password || '');
+    if (user) {
       loginAttempts.delete(ip);
-      req.session.loggedIn = true;
-      logEvent({ type: 'login_ok', actor: ip });
+      req.session.userId = user.id;
+      logEvent({ type: 'login_ok', actor: user.username });
       return res.redirect('/');
     }
     recordFailedAttempt(ip);
-    logEvent({ level: 'warn', type: 'login_failed', actor: ip });
-    return res.status(401).send(loginPage({ error: 'รหัสผ่านไม่ถูกต้อง', bot: botInfo() }));
+    logEvent({ level: 'warn', type: 'login_failed', actor: `${req.body.login || ''} · ${ip}` });
+    return res.status(401).send(loginPage({ discordEnabled, values: { login: req.body.login }, error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' }));
+  });
+
+  app.get('/register', (req, res) => {
+    if (currentUser(req)) return res.redirect('/');
+    res.send(registerPage({ discordEnabled }));
+  });
+
+  app.post('/register', (req, res) => {
+    if (isLockedOut(req.ip)) return res.status(429).send(registerPage({ discordEnabled, error: 'ลองมากเกินไป กรุณารอสักครู่' }));
+    const { username, email, password } = req.body;
+    const result = accounts.registerUser({ username, email, password });
+    if (result.error) {
+      return res.status(400).send(registerPage({ discordEnabled, values: { username, email }, error: result.error }));
+    }
+    req.session.userId = result.user.id;
+    logEvent({ type: 'user_registered', actor: result.user.username });
+    return res.redirect('/');
+  });
+
+  // ---- Login with Discord ----
+  app.get('/auth/discord', (req, res) => {
+    if (!discordEnabled) return res.redirect('/login');
+    const state = crypto.randomBytes(16).toString('hex');
+    req.session.oauthState = state;
+    res.redirect(oauth.authorizeUrl(state, redirectUri(req)));
+  });
+
+  app.get('/auth/discord/callback', async (req, res) => {
+    if (!discordEnabled) return res.redirect('/login');
+    if (!req.query.code || !req.query.state || req.query.state !== req.session.oauthState) {
+      return res.status(400).send(loginPage({ discordEnabled, error: 'การเข้าสู่ระบบด้วย Discord ล้มเหลว (state ไม่ตรง)' }));
+    }
+    req.session.oauthState = null;
+    try {
+      const token = await oauth.exchangeCode(req.query.code, redirectUri(req));
+      const profile = await oauth.fetchUser(token.access_token);
+      const user = accounts.upsertDiscordUser(profile);
+      req.session.userId = user.id;
+      try {
+        req.session.managedGuildIds = await oauth.fetchManagedGuildIds(token.access_token);
+      } catch {
+        req.session.managedGuildIds = [];
+      }
+      logEvent({ type: 'login_discord', actor: user.username });
+      return res.redirect('/');
+    } catch (e) {
+      logEvent({ level: 'warn', type: 'login_discord_failed', detail: e.message });
+      return res.status(502).send(loginPage({ discordEnabled, error: 'เชื่อมต่อ Discord ไม่สำเร็จ ลองใหม่อีกครั้ง' }));
+    }
   });
 
   app.get('/logout', (req, res) => {

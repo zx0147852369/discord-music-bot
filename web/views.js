@@ -103,8 +103,8 @@ function fontsAndReset() {
 <link rel="icon" href="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="24" fill="%235865F2"/><text x="50" y="66" font-size="52" text-anchor="middle" fill="white" font-family="sans-serif">♪</text></svg>')}">`;
 }
 
-function layout({ title, body, nav, toast }) {
-  // The login screen is the only page without the app shell.
+function layout({ title, body, nav, toast, bare }) {
+  // The login/register screens are shown without the app shell.
   const sidebarHtml = nav ? sidebar(nav) : '';
   const toastAttrs = toast
     ? ` data-toast="${escapeHtml(toast.msg)}" data-toast-type="${escapeHtml(toast.type || 'ok')}"`
@@ -762,15 +762,60 @@ ${fontsAndReset()}
     *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
     .guild-row:hover, .loop-tile:hover { transform: none; }
   }
+
+  /* ---- Auth (login / register) — split-screen, no app shell ---- */
+  .auth-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px;
+    background: radial-gradient(120% 100% at 0% 0%, #eef1fb 0%, var(--bg) 45%); }
+  .auth-card { width: 100%; max-width: 920px; display: grid; grid-template-columns: 1.05fr 1fr;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 22px; overflow: hidden;
+    box-shadow: 0 40px 90px -40px rgba(16,24,40,.4); animation: riseIn .5s cubic-bezier(.2,.7,.2,1) both; }
+  .auth-brand { position: relative; overflow: hidden; padding: 40px 38px; color: #fff;
+    background: radial-gradient(130% 120% at 10% 0%, rgba(120,140,255,.5), transparent 55%),
+      linear-gradient(150deg, #171a34 0%, #232a5e 55%, #2c2360 100%); display: flex; flex-direction: column; }
+  .auth-brand-logo { display: inline-flex; align-items: center; gap: 11px; font-weight: 800; font-size: 17px; }
+  .auth-brand-logo .lg { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center;
+    background: rgba(255,255,255,.12); font-size: 20px; }
+  .auth-brand h2 { font-size: 25px; font-weight: 800; line-height: 1.3; margin: 30px 0 10px; letter-spacing: -.3px; }
+  .auth-brand p.lead { color: #c3cbf0; font-size: 14px; line-height: 1.6; margin: 0 0 26px; }
+  .auth-feats { list-style: none; margin: auto 0 0; padding: 0; display: flex; flex-direction: column; gap: 13px; }
+  .auth-feats li { display: flex; align-items: center; gap: 11px; font-size: 13.5px; color: #dfe4ff; }
+  .auth-feats .fi { width: 26px; height: 26px; border-radius: 8px; background: rgba(255,255,255,.13); display: grid; place-items: center; flex-shrink: 0; font-size: 14px; }
+  .auth-form { padding: 40px 38px; display: flex; flex-direction: column; justify-content: center; }
+  .auth-form h1 { font-size: 22px; font-weight: 800; margin: 0 0 4px; letter-spacing: -.2px; }
+  .auth-form .sub { color: var(--text-muted); font-size: 13.5px; margin: 0 0 22px; }
+  .auth-field { margin-bottom: 15px; }
+  .auth-field label { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-muted); margin-bottom: 7px; }
+  .auth-field input { width: 100%; padding: 12px 13px; border-radius: 10px; border: 1px solid var(--border-strong);
+    background: var(--surface-2); color: var(--text); font-size: 14px; font-family: inherit; }
+  .auth-field input:focus { outline: none; border-color: var(--accent); background: var(--surface-hover); }
+  .auth-form button.primary.full { width: 100%; margin-top: 8px; justify-content: center; }
+  .auth-error { background: var(--danger-soft); color: var(--danger); border: 1px solid #f3c3bf; border-radius: 10px;
+    padding: 11px 13px; font-size: 13px; margin-bottom: 15px; }
+  .auth-or { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--text-faint); font-size: 12px; }
+  .auth-or::before, .auth-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .btn-discord { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;
+    padding: 12px 14px; border-radius: 10px; border: none; cursor: pointer; text-decoration: none;
+    background: #5865F2; color: #fff; font-size: 14px; font-weight: 700; font-family: inherit;
+    transition: background .15s ease, box-shadow .2s ease; }
+  .btn-discord:hover { background: #4752c4; box-shadow: 0 10px 24px -10px rgba(88,101,242,.7); }
+  .btn-discord svg { width: 20px; height: 20px; }
+  .auth-alt { margin-top: 22px; text-align: center; font-size: 13.5px; color: var(--text-muted); }
+  .auth-alt a { color: var(--accent); font-weight: 600; text-decoration: none; }
+  .auth-alt a:hover { text-decoration: underline; }
+  @media (max-width: 720px) {
+    .auth-card { grid-template-columns: 1fr; max-width: 440px; }
+    .auth-brand { display: none; }
+    .auth-form { padding: 32px 26px; }
+  }
 </style>
 </head>
 <body${toastAttrs}>
-<div class="shell">
+${bare ? body : `<div class="shell">
 ${sidebarHtml}
 <div class="content">
 ${body}
 </div>
-</div>
+</div>`}
 <div class="toast-host" id="toast-host" aria-live="polite" aria-atomic="false"></div>
 <script>
 (function () {
@@ -797,31 +842,77 @@ ${body}
 </html>`;
 }
 
-function loginPage({ error, bot } = {}) {
-  const logo = bot?.avatarUrl
-    ? `<img src="${escapeHtml(bot.avatarUrl)}" alt="" style="width:64px;height:64px;border-radius:18px;">`
-    : `<div class="avatar-fallback" style="width:64px;height:64px;border-radius:18px;font-size:24px;">${escapeHtml(initials(bot?.name || 'DJ'))}</div>`;
-  return layout({
-    title: 'เข้าสู่ระบบ - ' + (bot?.name || 'Music Bot'),
-    body: `
-<main class="narrow">
-  <div class="login-card">
-    <div class="login-logo">${logo}</div>
-    <h1 class="login-title">${escapeHtml(bot?.name || 'Music Bot')} Dashboard</h1>
-    <p class="login-sub">ใส่รหัสผ่านเพื่อจัดการการตั้งค่าบอท</p>
-    <div class="card">
-      <form method="POST" action="/login">
-        <div class="field" style="margin-top:0;">
-          <label class="field-label" for="password">รหัสผ่าน</label>
-          <input type="password" id="password" name="password" autofocus required placeholder="••••••••">
-        </div>
-        ${error ? `<div class="error-box">${escapeHtml(error)}</div>` : ''}
+const DISCORD_LOGO =
+  '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.369A19.79 19.79 0 0 0 15.885 3c-.2.36-.43.845-.588 1.23a18.27 18.27 0 0 0-5.594 0A12.6 12.6 0 0 0 9.11 3 19.74 19.74 0 0 0 4.677 4.37C1.9 8.53 1.145 12.58 1.522 16.573A19.9 19.9 0 0 0 7.6 19.65c.49-.67.926-1.38 1.3-2.126-.714-.27-1.398-.603-2.043-.99.171-.126.34-.257.5-.392 3.927 1.84 8.18 1.84 12.06 0 .164.14.332.27.5.392-.646.39-1.332.722-2.047.992.375.744.81 1.454 1.3 2.124a19.84 19.84 0 0 0 6.083-3.078c.442-4.63-.756-8.64-3.166-12.205ZM8.68 14.11c-1.183 0-2.156-1.085-2.156-2.42 0-1.334.95-2.42 2.156-2.42 1.215 0 2.18 1.096 2.157 2.42 0 1.335-.952 2.42-2.157 2.42Zm6.64 0c-1.183 0-2.156-1.085-2.156-2.42 0-1.334.95-2.42 2.156-2.42 1.215 0 2.18 1.096 2.157 2.42 0 1.335-.942 2.42-2.157 2.42Z"/></svg>';
+
+function authBrand() {
+  const feat = (icon, text) => `<li><span class="fi">${icon}</span>${escapeHtml(text)}</li>`;
+  return `<div class="auth-brand">
+    <div class="auth-brand-logo"><span class="lg">🎵</span> Music Bot Console</div>
+    <h2>คุมบอทเพลง Discord<br>ได้จากที่เดียว</h2>
+    <p class="lead">สมัครใช้งาน แล้วเลือกได้ว่าจะเชื่อมบอทของคุณเอง หรือใช้บอทของระบบ — ตั้งค่า เปิดเพลง ดูประวัติ และคุมทุกเซิร์ฟเวอร์ได้จากหน้าเดียว</p>
+    <ul class="auth-feats">
+      ${feat('🤖', 'เลือกได้: บอทของคุณเอง หรือบอทของระบบ')}
+      ${feat('🎚️', 'เอฟเฟกต์เสียง เพลย์ลิสต์วนซ้ำ เล่นต่อเนื่อง')}
+      ${feat('🕒', 'เปิดเพลง 24 ชั่วโมง หลายเซิร์ฟเวอร์')}
+      ${feat('🔒', 'ข้อมูลของแต่ละผู้ใช้แยกกัน ปลอดภัย')}
+    </ul>
+  </div>`;
+}
+
+function authPage({ mode, error, values = {}, discordEnabled, notice }) {
+  const isRegister = mode === 'register';
+  const title = isRegister ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ';
+  const discordBtn = discordEnabled
+    ? `<a class="btn-discord" href="/auth/discord">${DISCORD_LOGO} ${isRegister ? 'สมัครด้วย Discord' : 'เข้าสู่ระบบด้วย Discord'}</a>
+       <div class="auth-or">หรือ</div>`
+    : '';
+
+  const form = isRegister
+    ? `<form method="POST" action="/register" novalidate>
+        <div class="auth-field"><label for="username">ชื่อผู้ใช้</label>
+          <input id="username" name="username" value="${escapeHtml(values.username || '')}" autocomplete="username" placeholder="เช่น jaymusic" required></div>
+        <div class="auth-field"><label for="email">อีเมล</label>
+          <input id="email" name="email" type="email" value="${escapeHtml(values.email || '')}" autocomplete="email" placeholder="you@example.com" required></div>
+        <div class="auth-field"><label for="password">รหัสผ่าน</label>
+          <input id="password" name="password" type="password" autocomplete="new-password" placeholder="อย่างน้อย 8 ตัวอักษร" required></div>
+        <button type="submit" class="primary full">สร้างบัญชี</button>
+      </form>
+      <div class="auth-alt">มีบัญชีอยู่แล้ว? <a href="/login">เข้าสู่ระบบ</a></div>`
+    : `<form method="POST" action="/login" novalidate>
+        <div class="auth-field"><label for="login">ชื่อผู้ใช้ หรือ อีเมล</label>
+          <input id="login" name="login" value="${escapeHtml(values.login || '')}" autocomplete="username" autofocus placeholder="ชื่อผู้ใช้ หรือ อีเมล" required></div>
+        <div class="auth-field"><label for="password">รหัสผ่าน</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required></div>
         <button type="submit" class="primary full">เข้าสู่ระบบ</button>
       </form>
+      <div class="auth-alt">ยังไม่มีบัญชี? <a href="/register">สมัครสมาชิก</a></div>`;
+
+  return layout({
+    title: `${title} - Music Bot Console`,
+    bare: true,
+    body: `
+<div class="auth-wrap">
+  <div class="auth-card">
+    ${authBrand()}
+    <div class="auth-form">
+      <h1>${title}</h1>
+      <p class="sub">${isRegister ? 'สร้างบัญชีเพื่อเริ่มใช้งานระบบคุมบอทเพลง' : 'ยินดีต้อนรับกลับ เข้าสู่ระบบเพื่อจัดการบอทของคุณ'}</p>
+      ${notice ? `<div class="auth-error" style="background:var(--success-soft);color:var(--success);border-color:#a6e0c0;">${escapeHtml(notice)}</div>` : ''}
+      ${error ? `<div class="auth-error">${escapeHtml(error)}</div>` : ''}
+      ${discordBtn}
+      ${form}
     </div>
   </div>
-</main>`,
+</div>`,
   });
+}
+
+function loginPage(opts = {}) {
+  return authPage({ ...opts, mode: 'login' });
+}
+function registerPage(opts = {}) {
+  return authPage({ ...opts, mode: 'register' });
 }
 
 function formatDuration(seconds) {
@@ -1804,6 +1895,7 @@ setInterval(refreshSystem, 5000);
 
 module.exports = {
   loginPage,
+  registerPage,
   guildListPage,
   guildSettingsPage,
   logsPage,

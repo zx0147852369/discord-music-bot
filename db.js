@@ -317,6 +317,7 @@ function saveGuildSettings(guildId, settings) {
 }
 
 module.exports = {
+  db, // shared handle so other modules (e.g. accounts) reuse this connection
   dbPath,
   getGuildSettings,
   saveGuildSettings,
