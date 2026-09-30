@@ -1152,10 +1152,14 @@ function sidebar({ bot, active, guild }) {
     }
     <div class="nav-group">ระบบ</div>
     ${item('account', '/account', ICONS.user, 'บัญชีของฉัน')}
-    ${bot?.admin ? item('admin-users', '/admin/users', ICONS.people, 'จัดการผู้ใช้') : ''}
-    ${item('logs', '/logs', ICONS.log, 'บันทึกระบบ')}
-    ${item('console', '/logs/console', ICONS.search, 'บันทึกบอท')}
-    ${item('system', '/system', ICONS.server, 'ทรัพยากรเครื่อง')}
+    ${
+      bot?.admin
+        ? item('admin-users', '/admin/users', ICONS.people, 'จัดการผู้ใช้') +
+          item('logs', '/logs', ICONS.log, 'บันทึกระบบ') +
+          item('console', '/logs/console', ICONS.search, 'บันทึกบอท') +
+          item('system', '/system', ICONS.server, 'ทรัพยากรเครื่อง')
+        : ''
+    }
   </nav>
 
   <a href="/logout" class="nav-item nav-foot">${ICONS.logout}<span>ออกจากระบบ</span></a>

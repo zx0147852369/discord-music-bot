@@ -86,6 +86,16 @@ function startDashboard(botHub) {
     return req.session.userId ? accounts.getUserById(req.session.userId) : null;
   }
 
+  // Start a fresh session on login so a pre-existing session id can't be fixed onto the user.
+  function finishLogin(req, res, userId, extra) {
+    req.session.regenerate((err) => {
+      if (err) console.error('session regenerate failed:', err.message);
+      req.session.userId = userId;
+      if (extra) Object.assign(req.session, extra);
+      req.session.save(() => res.redirect('/'));
+    });
+  }
+
   function requireAuth(req, res, next) {
     const user = currentUser(req);
     if (!user) return res.redirect('/login');
@@ -115,9 +125,8 @@ function startDashboard(botHub) {
     const user = accounts.authenticate(req.body.login || '', req.body.password || '');
     if (user) {
       loginAttempts.delete(ip);
-      req.session.userId = user.id;
       logEvent({ type: 'login_ok', actor: user.username });
-      return res.redirect('/');
+      return finishLogin(req, res, user.id);
     }
     recordFailedAttempt(ip);
     logEvent({ level: 'warn', type: 'login_failed', actor: `${req.body.login || ''} · ${ip}` });
@@ -136,9 +145,8 @@ function startDashboard(botHub) {
     if (result.error) {
       return res.status(400).send(registerPage({ discordEnabled, values: { username, email }, error: result.error }));
     }
-    req.session.userId = result.user.id;
     logEvent({ type: 'user_registered', actor: result.user.username });
-    return res.redirect('/');
+    return finishLogin(req, res, result.user.id);
   });
 
   // ---- Login with Discord ----
@@ -159,14 +167,9 @@ function startDashboard(botHub) {
       const token = await oauth.exchangeCode(req.query.code, redirectUri(req));
       const profile = await oauth.fetchUser(token.access_token);
       const user = accounts.upsertDiscordUser(profile);
-      req.session.userId = user.id;
-      try {
-        req.session.managedGuildIds = await oauth.fetchManagedGuildIds(token.access_token);
-      } catch {
-        req.session.managedGuildIds = [];
-      }
+      const managedGuildIds = await oauth.fetchManagedGuildIds(token.access_token).catch(() => []);
       logEvent({ type: 'login_discord', actor: user.username });
-      return res.redirect('/');
+      return finishLogin(req, res, user.id, { managedGuildIds });
     } catch (e) {
       logEvent({ level: 'warn', type: 'login_discord_failed', detail: e.message });
       return res.status(502).send(loginPage({ discordEnabled, error: 'เชื่อมต่อ Discord ไม่สำเร็จ ลองใหม่อีกครั้ง' }));
@@ -413,7 +416,9 @@ function startDashboard(botHub) {
   });
 
   app.get('/guild/:id/status.json', requireAuth, (req, res) => {
-    const queue = req.botClient.distube.getQueue(req.params.id);
+    const guild = accessibleGuild(req);
+    if (!guild) return res.json({ playing: false });
+    const queue = req.botClient.distube.getQueue(guild.id);
     if (!queue) return res.json({ playing: false });
     const song = queue.songs[0];
     res.json({
@@ -484,7 +489,9 @@ function startDashboard(botHub) {
   });
 
   app.post('/guild/:id/control', requireAuth, express.json(), async (req, res) => {
-    const queue = req.botClient.distube.getQueue(req.params.id);
+    const guild = accessibleGuild(req);
+    if (!guild) return res.status(404).json({ error: 'ไม่พบเซิร์ฟเวอร์นี้' });
+    const queue = req.botClient.distube.getQueue(guild.id);
     if (!queue) return res.status(400).json({ error: 'ตอนนี้ไม่มีเพลงเล่นอยู่' });
 
     try {
@@ -524,7 +531,7 @@ function startDashboard(botHub) {
 
   // Activity log. /logs shows events that are not tied to a server (logins, start-ups);
   // /guild/:id/logs shows that server's playback history.
-  app.get('/logs', requireAuth, (req, res) => {
+  app.get('/logs', requireAuth, requireAdmin, (req, res) => {
     const level = ['info', 'warn', 'error'].includes(req.query.level) ? req.query.level : null;
     res.send(
       logsPage({
@@ -541,7 +548,7 @@ function startDashboard(botHub) {
   });
 
   // Raw console output from the bot process.
-  app.get('/logs/console', requireAuth, (req, res) => {
+  app.get('/logs/console', requireAuth, requireAdmin, (req, res) => {
     const level = ['info', 'warn', 'error'].includes(req.query.level) ? req.query.level : null;
     res.send(
       consoleLogsPage({
@@ -553,7 +560,7 @@ function startDashboard(botHub) {
     );
   });
 
-  app.get('/logs/console.json', requireAuth, (req, res) => {
+  app.get('/logs/console.json', requireAuth, requireAdmin, (req, res) => {
     const level = ['info', 'warn', 'error'].includes(req.query.level) ? req.query.level : null;
     res.json({ lines: getConsoleLogs({ level, limit: 300 }) });
   });
@@ -574,11 +581,11 @@ function startDashboard(botHub) {
     return stats;
   }
 
-  app.get('/system', requireAuth, (req, res) => {
+  app.get('/system', requireAuth, requireAdmin, (req, res) => {
     res.send(systemPage({ stats: resourceSnapshot(req), bot: botInfo(req), guild: menuGuild(req) }));
   });
 
-  app.get('/system.json', requireAuth, (req, res) => {
+  app.get('/system.json', requireAuth, requireAdmin, (req, res) => {
     res.json({ fields: systemFields(resourceSnapshot(req)) });
   });
 
