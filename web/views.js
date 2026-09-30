@@ -120,27 +120,34 @@ ${fontsAndReset()}
 <style>
   :root {
     color-scheme: light;
-    --bg: #f6f7f9;
-    --surface: #ffffff;
-    --surface-2: #f2f4f7;
-    --surface-hover: #eceff3;
-    --border: #e4e7ec;
-    --border-strong: #d0d5dd;
-    --text: #101828;
-    --text-muted: #5a6473;
-    --text-faint: #8a93a3;
+    --bg: #e9eef8;
+    /* Frosted-glass surfaces. Backdrop-filter is applied only to top-level panels
+       (cards + sidebar); nested elements use these translucent tints without their own blur,
+       which keeps scrolling smooth. */
+    --surface: rgba(255,255,255,0.72);
+    --surface-2: rgba(255,255,255,0.46);
+    --surface-hover: rgba(255,255,255,0.86);
+    --border: rgba(108,124,166,0.18);
+    --border-strong: rgba(108,124,166,0.32);
+    --text: #0f1729;
+    --text-muted: #4a5678;
+    --text-faint: #78829c;
     --accent: #3352cc;
     --accent-hover: #2942ab;
-    --accent-soft: #e8ecfb;
+    --accent-soft: rgba(51,82,204,0.12);
     --success: #067647;
-    --success-soft: #e4f6ec;
+    --success-soft: rgba(6,118,71,0.13);
     --danger: #b42318;
-    --danger-soft: #fdeceb;
+    --danger-soft: rgba(180,35,24,0.13);
     --warning: #b54708;
-    --warning-soft: #fdf1e3;
-    --radius: 10px;
-    --shadow: 0 1px 2px rgba(16,24,40,0.05);
-    --shadow-lift: 0 4px 12px rgba(16,24,40,0.08);
+    --warning-soft: rgba(181,71,8,0.15);
+    --radius: 14px;
+    --glass: rgba(255,255,255,0.55);
+    --glass-hover: rgba(255,255,255,0.72);
+    --glass-border: rgba(255,255,255,0.6);
+    --glass-blur: blur(16px) saturate(1.45);
+    --shadow: 0 10px 34px -16px rgba(24,34,78,0.26);
+    --shadow-lift: 0 18px 44px -20px rgba(24,34,78,0.32);
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
@@ -151,6 +158,16 @@ ${fontsAndReset()}
     color: var(--text);
     min-height: 100vh;
   }
+  /* A single fixed ambient layer the glass frosts over — painted once, so it never repaints
+     while scrolling (the main cost of glassmorphism). */
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(55% 45% at 12% 6%, rgba(99,124,255,0.20), transparent 60%),
+      radial-gradient(45% 42% at 90% 0%, rgba(150,110,255,0.16), transparent 55%),
+      radial-gradient(52% 52% at 82% 98%, rgba(45,200,175,0.14), transparent 62%),
+      linear-gradient(140deg, #eaf0fb 0%, #e5ecf7 48%, #edf0fb 100%);
+  }
   a { color: inherit; }
   ::selection { background: var(--accent-soft); }
 
@@ -158,8 +175,10 @@ ${fontsAndReset()}
   .shell { display: flex; min-height: 100vh; }
   .sidebar {
     width: 250px; flex-shrink: 0;
-    background: var(--surface);
-    border-right: 1px solid var(--border);
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border-right: 1px solid var(--glass-border);
     padding: 20px 14px;
     display: flex; flex-direction: column; gap: 6px;
     position: sticky; top: 0; height: 100vh; overflow-y: auto;
@@ -234,12 +253,14 @@ ${fontsAndReset()}
   .page-sub { color: var(--text-muted); font-size: 14px; margin: 0 0 28px; }
 
   .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
     padding: 26px;
     margin-bottom: 20px;
-    box-shadow: var(--shadow);
+    box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.45);
   }
   .section-head {
     display: flex; align-items: center; gap: 10px;
@@ -787,8 +808,10 @@ ${fontsAndReset()}
   .auth-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px;
     background: radial-gradient(120% 100% at 0% 0%, #eef1fb 0%, var(--bg) 45%); }
   .auth-card { width: 100%; max-width: 920px; display: grid; grid-template-columns: 1.05fr 1fr;
-    background: var(--surface); border: 1px solid var(--border); border-radius: 22px; overflow: hidden;
-    box-shadow: 0 40px 90px -40px rgba(16,24,40,.4); animation: riseIn .5s cubic-bezier(.2,.7,.2,1) both; }
+    background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border); border-radius: 22px; overflow: hidden;
+    box-shadow: 0 40px 90px -40px rgba(16,24,40,.45), inset 0 1px 0 rgba(255,255,255,.5);
+    animation: riseIn .5s cubic-bezier(.2,.7,.2,1) both; }
   .auth-brand { position: relative; overflow: hidden; padding: 40px 38px; color: #fff;
     background: radial-gradient(130% 120% at 10% 0%, rgba(120,140,255,.5), transparent 55%),
       linear-gradient(150deg, #171a34 0%, #232a5e 55%, #2c2360 100%); display: flex; flex-direction: column; }
@@ -826,6 +849,23 @@ ${fontsAndReset()}
     .auth-card { grid-template-columns: 1fr; max-width: 440px; }
     .auth-brand { display: none; }
     .auth-form { padding: 32px 26px; }
+  }
+
+  /* ---- Glass fallbacks: keep it readable and smooth everywhere ---- */
+  /* Browsers without backdrop-filter get solid surfaces (no see-through text). */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :root {
+      --glass: #ffffff; --glass-hover: #f4f6fb; --glass-border: #e2e7f0;
+      --surface: #ffffff; --surface-2: #eef1f7; --surface-hover: #e8edf6;
+    }
+  }
+  /* Honour a preference for reduced transparency (accessibility + battery/perf): drop the
+     blur and go solid. */
+  @media (prefers-reduced-transparency: reduce) {
+    .card, .sidebar, .auth-card {
+      -webkit-backdrop-filter: none; backdrop-filter: none; background: #ffffff;
+    }
+    body::before { opacity: .5; }
   }
 </style>
 </head>
