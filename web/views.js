@@ -378,6 +378,9 @@ ${fontsAndReset()}
   }
   button.primary:hover { background: var(--accent-hover); }
   button.primary:active { transform: scale(.98); }
+  button.primary:disabled, button:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+  button.primary:disabled:hover { background: var(--accent); transform: none; }
+  input:disabled, select:disabled { opacity: .55; cursor: not-allowed; background: var(--surface-2); }
 
   .saved-toast {
     display: inline-flex; align-items: center; gap: 6px;
@@ -1973,19 +1976,19 @@ function accountPage({ user, bot, guild, saved, error }) {
     </div>
   </form>
 
-  <div class="card" id="ownbot" style="${isOwn ? '' : 'opacity:.6;'}">
+  <div class="card" id="ownbot">
     <div class="section-head">
       <div class="section-icon">${ICONS.user}</div>
       <h2 class="section-title">บอทของฉันเอง ${statusBadge}</h2>
     </div>
     <p class="section-desc">
       วางโทเคนบอทจาก <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Discord Developer Portal</a>
-      (Bot → Reset Token) ระบบจะตรวจสอบและรันบอทให้ทันที — โทเคนถูกเข้ารหัสก่อนเก็บ และจะไม่แสดงให้เห็นอีก
-      ${isOwn ? '' : '<br><b style="color:var(--warning)">เลือกโหมด “ใช้บอทของฉันเอง” ด้านบนก่อน แล้วบันทึก</b>'}
+      (Bot → Reset Token) แล้วกดเชื่อมต่อได้เลย — ระบบจะตรวจสอบ รันบอทให้ และสลับมาโหมด “ใช้บอทของฉันเอง” ให้อัตโนมัติ
+      (โทเคนถูกเข้ารหัสก่อนเก็บ และจะไม่แสดงให้เห็นอีก)
     </p>
     <form method="POST" action="/account/bot-token" class="loop-add" style="margin-top:14px;">
-      <input type="password" name="token" placeholder="วางโทเคนบอทที่นี่" autocomplete="off" ${isOwn ? '' : 'disabled'}>
-      <button type="submit" class="primary" ${isOwn ? '' : 'disabled'}>เชื่อมต่อ</button>
+      <input type="password" name="token" placeholder="วางโทเคนบอทที่นี่" autocomplete="off" required>
+      <button type="submit" class="primary">เชื่อมต่อ</button>
     </form>
     ${
       user.hasOwnToken
