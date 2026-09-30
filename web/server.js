@@ -219,6 +219,17 @@ function startDashboard(botHub) {
     res.redirect('/account?saved=1');
   });
 
+  app.post('/account/password', requireAuth, (req, res) => {
+    // Verify the current password first (unless this is a Discord-only account with none yet).
+    if (req.user.hasPassword && !accounts.authenticate(req.user.username, req.body.current_password || '')) {
+      return res.redirect('/account?error=' + encodeURIComponent('รหัสผ่านปัจจุบันไม่ถูกต้อง'));
+    }
+    const result = accounts.setPassword(req.user.id, req.body.new_password || '');
+    if (result.error) return res.redirect('/account?error=' + encodeURIComponent(result.error));
+    logEvent({ type: 'password_changed', actor: req.user.username });
+    res.redirect('/account?saved=1');
+  });
+
   function botInfo(req) {
     return {
       name: req.botClient?.user?.username || 'Music Bot',

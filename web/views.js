@@ -1994,6 +1994,25 @@ function accountPage({ user, bot, guild, saved, error }) {
         : ''
     }
   </div>
+
+  <div class="card">
+    <div class="section-head">
+      <div class="section-icon">${ICONS.shield}</div>
+      <h2 class="section-title">${user.hasPassword ? 'เปลี่ยนรหัสผ่าน' : 'ตั้งรหัสผ่าน'}</h2>
+    </div>
+    <p class="section-desc">${user.hasPassword ? 'ตั้งรหัสผ่านใหม่สำหรับเข้าสู่ระบบ' : 'บัญชีนี้เข้าผ่าน Discord — ตั้งรหัสผ่านไว้เพื่อเข้าด้วยชื่อผู้ใช้/อีเมลได้ด้วย'}</p>
+    <form method="POST" action="/account/password" style="max-width:420px;">
+      ${
+        user.hasPassword
+          ? `<div class="auth-field" style="margin-top:14px;"><label for="current_password">รหัสผ่านปัจจุบัน</label>
+             <input id="current_password" type="password" name="current_password" autocomplete="current-password" required></div>`
+          : ''
+      }
+      <div class="auth-field"><label for="new_password">รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)</label>
+        <input id="new_password" type="password" name="new_password" autocomplete="new-password" minlength="8" required></div>
+      <button type="submit" class="primary">${user.hasPassword ? 'เปลี่ยนรหัสผ่าน' : 'ตั้งรหัสผ่าน'}</button>
+    </form>
+  </div>
 </main>
 <script>
   document.querySelectorAll('.mode-card input[name="bot_mode"]').forEach((r) => {
