@@ -1149,6 +1149,7 @@ function sidebar({ bot, active, guild }) {
     }
     <div class="nav-group">ระบบ</div>
     ${item('account', '/account', ICONS.user, 'บัญชีของฉัน')}
+    ${bot?.admin ? item('admin-users', '/admin/users', ICONS.people, 'จัดการผู้ใช้') : ''}
     ${item('logs', '/logs', ICONS.log, 'บันทึกระบบ')}
     ${item('console', '/logs/console', ICONS.search, 'บันทึกบอท')}
     ${item('system', '/system', ICONS.server, 'ทรัพยากรเครื่อง')}
@@ -2027,10 +2028,49 @@ function accountPage({ user, bot, guild, saved, error }) {
   });
 }
 
+function adminUsersPage({ users, bot, guild, saved, error, meId }) {
+  const rows = users
+    .map((u) => {
+      const who = u.discord_id ? `${escapeHtml(u.discord_username || u.username)} · Discord` : escapeHtml(u.email || '—');
+      const mode = u.bot_mode === 'own' ? 'บอทตัวเอง' + (u.own_bot_status === 'connected' ? ' (ออนไลน์)' : '') : 'บอทระบบ';
+      return `<tr>
+        <td class="log-detail"><b>${escapeHtml(u.username)}</b>${u.id === meId ? ' <span class="lvl info">คุณ</span>' : ''}</td>
+        <td class="log-actor">${who}</td>
+        <td class="log-actor">${u.role === 'admin' ? '<span class="lvl info">แอดมิน</span>' : 'สมาชิก'}</td>
+        <td class="log-actor">${escapeHtml(mode)}</td>
+        <td>
+          <form method="POST" action="/admin/users/${u.id}/reset-password" class="loop-add" style="margin:0;">
+            <input type="password" name="new_password" placeholder="รหัสใหม่ (≥8 ตัว)" autocomplete="new-password" minlength="8" required style="min-width:160px;">
+            <button type="submit" class="tbtn">รีเซ็ตรหัส</button>
+          </form>
+        </td>
+      </tr>`;
+    })
+    .join('');
+
+  return layout({
+    title: `จัดการผู้ใช้ - ${bot?.name || 'Music Bot'}`,
+    nav: { bot, active: 'admin-users', guild },
+    toast: saved ? { msg: 'บันทึกแล้ว', type: 'ok' } : error ? { msg: error, type: 'err' } : null,
+    body: `
+<main style="max-width:960px;">
+  <h1 class="page-title">จัดการผู้ใช้</h1>
+  <p class="page-sub">ดูบัญชีทั้งหมดและรีเซ็ตรหัสผ่านให้ผู้ใช้ได้ (เฉพาะแอดมิน)</p>
+  <div class="card">
+    <div class="table-scroll"><table class="log-table">
+      <thead><tr><th>ชื่อผู้ใช้</th><th>อีเมล/Discord</th><th>สิทธิ์</th><th>โหมดบอท</th><th>รีเซ็ตรหัสผ่าน</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>
+</main>`,
+  });
+}
+
 module.exports = {
   loginPage,
   registerPage,
   accountPage,
+  adminUsersPage,
   guildListPage,
   guildSettingsPage,
   logsPage,

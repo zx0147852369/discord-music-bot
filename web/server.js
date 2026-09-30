@@ -24,6 +24,7 @@ const {
   loginPage,
   registerPage,
   accountPage,
+  adminUsersPage,
   guildListPage,
   guildSettingsPage,
   logsPage,
@@ -230,10 +231,40 @@ function startDashboard(botHub) {
     res.redirect('/account?saved=1');
   });
 
+  // ---- Admin: user management ----
+  function requireAdmin(req, res, next) {
+    if (req.user.role !== 'admin') return res.redirect('/');
+    return next();
+  }
+
+  app.get('/admin/users', requireAuth, requireAdmin, (req, res) => {
+    res.send(
+      adminUsersPage({
+        users: accounts.listUsers(),
+        bot: botInfo(req),
+        guild: menuGuild(req),
+        saved: req.query.saved === '1',
+        error: req.query.error || null,
+        meId: req.user.id,
+      }),
+    );
+  });
+
+  app.post('/admin/users/:id/reset-password', requireAuth, requireAdmin, (req, res) => {
+    const targetId = parseInt(req.params.id, 10);
+    const target = accounts.getUserById(targetId);
+    if (!target) return res.redirect('/admin/users?error=' + encodeURIComponent('ไม่พบบัญชีนี้'));
+    const result = accounts.setPassword(targetId, req.body.new_password || '');
+    if (result.error) return res.redirect('/admin/users?error=' + encodeURIComponent(result.error));
+    logEvent({ type: 'admin_reset_password', actor: req.user.username, detail: `→ ${target.username}` });
+    res.redirect('/admin/users?saved=1');
+  });
+
   function botInfo(req) {
     return {
       name: req.botClient?.user?.username || 'Music Bot',
       avatarUrl: req.botClient?.user?.displayAvatarURL({ size: 64 }) || null,
+      admin: req.user?.role === 'admin',
     };
   }
 
